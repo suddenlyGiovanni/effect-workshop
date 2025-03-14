@@ -1,13 +1,5 @@
-import {
-  Console,
-  Context,
-  Effect,
-  Layer,
-  Ref,
-  pipe,
-  ReadonlyArray,
-} from "effect";
-import assert from "assert";
+import assert from "node:assert";
+import { Array, Console, Context, Effect, Layer, Ref, pipe } from "effect";
 
 class TestLogs extends Context.Tag("TestLogs")<
   TestLogs,
@@ -19,7 +11,7 @@ class TestLogs extends Context.Tag("TestLogs")<
   );
 }
 
-class Test extends Context.Tag("Test")<
+export class Test extends Context.Tag("Test")<
   Test,
   {
     logTest: (message: unknown) => Effect.Effect<void>;
@@ -28,10 +20,10 @@ class Test extends Context.Tag("Test")<
 >() {
   static readonly Live = Layer.effect(
     Test,
-    Effect.gen(function* (_) {
-      const logsRef = yield* _(TestLogs);
+    Effect.gen(function* () {
+      const logsRef = yield* TestLogs;
       const addLog = (message: unknown) =>
-        Ref.update(logsRef, (logs) => ReadonlyArray.append(logs, message));
+        Ref.update(logsRef, (logs) => Array.append(logs, message));
 
       const assertLogs = (expected: Array<unknown>) =>
         Ref.get(logsRef).pipe(

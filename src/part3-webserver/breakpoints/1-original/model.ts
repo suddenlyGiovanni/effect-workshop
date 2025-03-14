@@ -1,6 +1,5 @@
-import type { ParseError } from "@effect/schema/ParseResult";
-import * as S from "@effect/schema/Schema";
-import { Data } from "effect";
+import { Data, Schema as S } from "effect";
+import type { ParseError } from "effect/ParseResult";
 
 export const colors = [
   "red",
@@ -12,38 +11,32 @@ export const colors = [
   "white",
 ] as const;
 export type Color = (typeof colors)[number];
-export const Color = S.literal(...colors);
+export const Color = S.Literal(...colors);
 
-export const StartupMessage = S.struct({
-  _tag: S.literal("startup"),
+export const StartupMessage = S.Struct({
+  _tag: S.Literal("startup"),
   color: Color,
-  name: S.string,
+  name: S.String,
 });
 
-export type StartupMessage = S.Schema.To<typeof StartupMessage>;
+export type StartupMessage = S.Schema.Type<typeof StartupMessage>;
 
 export class BadStartupMessageError extends Data.TaggedError(
   "BadStartupMessage"
 )<{
   readonly error:
-    | {
-        readonly _tag: "parseError";
-        readonly parseError: ParseError;
-      }
-    | {
-        readonly _tag: "colorAlreadyTaken";
-        readonly color: Color;
-      };
+    | { readonly _tag: "parseError"; readonly parseError: ParseError }
+    | { readonly _tag: "colorAlreadyTaken"; readonly color: Color };
 }> {}
 
-export const ServerIncomingMessage = S.union(
-  S.struct({
-    _tag: S.literal("message"),
-    message: S.string,
+export const ServerIncomingMessage = S.Union(
+  S.Struct({
+    _tag: S.Literal("message"),
+    message: S.String,
   })
 );
 
-export type ServerIncomingMessage = S.Schema.To<typeof ServerIncomingMessage>;
+export type ServerIncomingMessage = S.Schema.Type<typeof ServerIncomingMessage>;
 
 export class UnknownIncomingMessageError extends Data.TaggedError(
   "UnknownIncomingMessage"
@@ -52,26 +45,26 @@ export class UnknownIncomingMessageError extends Data.TaggedError(
   readonly parseError: ParseError;
 }> {}
 
-export const ServerOutgoingMessage = S.union(
-  S.struct({
-    _tag: S.literal("message"),
-    name: S.string,
+export const ServerOutgoingMessage = S.Union(
+  S.Struct({
+    _tag: S.Literal("message"),
+    name: S.String,
     color: Color,
-    message: S.string,
-    timestamp: S.number,
+    message: S.String,
+    timestamp: S.Number,
   }),
-  S.struct({
-    _tag: S.literal("join"),
-    name: S.string,
+  S.Struct({
+    _tag: S.Literal("join"),
+    name: S.String,
     color: Color,
   }),
-  S.struct({
-    _tag: S.literal("leave"),
-    name: S.string,
+  S.Struct({
+    _tag: S.Literal("leave"),
+    name: S.String,
     color: Color,
   })
 );
-export type ServerOutgoingMessage = S.Schema.To<typeof ServerOutgoingMessage>;
+export type ServerOutgoingMessage = S.Schema.Type<typeof ServerOutgoingMessage>;
 
 export interface WebSocketConnection {
   readonly _rawWS: WebSocket;
@@ -80,11 +73,11 @@ export interface WebSocketConnection {
   readonly timeConnected: number;
 }
 
-export const AvailableColorsResponse = S.struct({
-  _tag: S.literal("availableColors"),
-  colors: S.array(Color),
+export const AvailableColorsResponse = S.Struct({
+  _tag: S.Literal("availableColors"),
+  colors: S.Array(Color),
 });
 
-export type AvailableColorsResponse = S.Schema.To<
+export type AvailableColorsResponse = S.Schema.Type<
   typeof AvailableColorsResponse
 >;

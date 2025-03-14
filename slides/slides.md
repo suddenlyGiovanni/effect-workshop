@@ -725,7 +725,7 @@ const effect = Effect.gen(function* (_) {
   );
 
   while (true) {
-    yield* _(Effect.sync(() => i++));
+    yield* Effect.sync(() => i++);
   }
 });
 ```

@@ -1,18 +1,18 @@
-import { PubSub, HashMap, Ref, Stream, Fiber } from "effect";
+import type { Fiber, HashMap, PubSub, Ref } from "effect";
 import {
   BadStartupMessageError,
   ServerIncomingMessage,
-  StartupMessage,
-  UnknownIncomingMessageError,
-  WebSocketError,
-  ServerOutgoingMessage,
-  StartupMessageFromJSON,
   ServerIncomingMessageFromJSON,
+  ServerOutgoingMessage,
   ServerOutgoingMessageFromJSON,
+  StartupMessage,
+  StartupMessageFromJSON,
+  UnknownIncomingMessageError,
   type WebSocketConnection,
-} from "../shared/model";
+  WebSocketError,
+} from "../shared/model.ts";
 
-export { colors, Color, AvailableColorsResponse } from "../shared/model";
+export { colors, Color, AvailableColorsResponse } from "../shared/model.ts";
 
 export {
   BadStartupMessageError,

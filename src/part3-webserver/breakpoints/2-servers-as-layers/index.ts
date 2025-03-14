@@ -1,9 +1,17 @@
-import { createServer } from "http";
-import { WebSocketServer, WebSocket } from "ws";
-import * as M from "./model";
-import * as S from "@effect/schema/Schema";
-import { Effect, Context, Layer, Config, pipe } from "effect";
+import { createServer } from "node:http";
 import { BunRuntime } from "@effect/platform-bun";
+import {
+  Config,
+  type ConfigError,
+  Context,
+  Effect,
+  Layer,
+  Schema,
+  pipe,
+} from "effect";
+import { type WebSocket, WebSocketServer } from "ws";
+
+import * as M from "./model.ts";
 
 class HttpServer extends Context.Tag("HttpServer")<
   HttpServer,
@@ -19,126 +27,133 @@ class WSSServer extends Context.Tag("WSSServer")<WSSServer, WebSocketServer>() {
   );
 }
 
-const ListenLive = Layer.effectDiscard(
-  Effect.gen(function* (_) {
-    const port = yield* _(
-      Config.integer("PORT").pipe(Config.withDefault(3000))
-    );
-    const server = yield* _(HttpServer);
-    yield* _(
-      Effect.sync(() =>
+const ListenLive: Layer.Layer<never, ConfigError.ConfigError, HttpServer> =
+  Layer.effectDiscard(
+    Effect.gen(function* () {
+      const port = yield* Config.integer("PORT").pipe(Config.withDefault(3000));
+
+      const server = yield* HttpServer;
+
+      yield* Effect.sync(() =>
         server.listen(port, () => console.log("Server started on port", port))
-      )
-    );
-  })
-);
+      );
+    })
+  );
 
-const main = Layer.effectDiscard(
-  Effect.gen(function* (_) {
-    const currentConnections: Map<string, M.WebSocketConnection> = new Map();
-    function broadcastMessage(message: M.ServerOutgoingMessage) {
-      const messageString = JSON.stringify(message);
-      currentConnections.forEach((conn) => {
-        conn._rawWS.send(messageString);
-      });
-    }
+const main: Layer.Layer<never, never, HttpServer | WSSServer> =
+  Layer.effectDiscard(
+    Effect.gen(function* () {
+      const currentConnections: Map<string, M.WebSocketConnection> = new Map();
 
-    const http = yield* _(HttpServer);
-    http.on("request", (req, res) => {
-      if (req.url !== "/colors") {
-        res.writeHead(404);
-        res.end("Not Found");
-        return;
+      function broadcastMessage(message: M.ServerOutgoingMessage) {
+        const messageString = JSON.stringify(message);
+        currentConnections.forEach((conn) => conn._rawWS.send(messageString));
       }
 
-      const currentColors = Array.from(currentConnections.values()).map(
-        (conn) => conn.color
-      );
-      const availableColors = M.colors.filter(
-        (color) => !currentColors.includes(color)
-      );
+      const http = yield* HttpServer;
 
-      const message: M.AvailableColorsResponse = {
-        _tag: "availableColors",
-        colors: availableColors,
-      };
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify(message));
-    });
+      http.on("request", (req, res) => {
+        if (req.url !== "/colors") {
+          res.writeHead(404);
+          res.end("Not Found");
+          return;
+        }
 
-    const wss = yield* _(WSSServer);
+        const currentColors = Array.from(currentConnections.values()).map(
+          (conn) => conn.color
+        );
 
-    wss.on("connection", (ws: WebSocket) => {
-      let connectionName: string;
+        const availableColors = M.colors.filter(
+          (color) => !currentColors.includes(color)
+        );
 
-      ws.on("message", (data) => {
-        try {
-          const message = JSON.parse(data.toString());
-          const parsedMessage = S.decodeUnknownSync(
-            S.union(M.ServerIncomingMessage, M.StartupMessage)
-          )(message);
+        const message = M.AvailableColorsResponse.make({
+          _tag: "availableColors",
+          colors: availableColors,
+        });
 
-          switch (parsedMessage._tag) {
-            case "startup": {
-              const { color, name } = parsedMessage;
-              if (!M.colors.includes(color) || currentConnections.has(name)) {
-                ws.close(); // Close the connection if the color is not available or the name is already taken
-                return;
-              }
+        res.writeHead(200, { "Content-Type": "application/json" });
 
-              connectionName = name;
-              console.log(`New connection: ${name}`);
-              currentConnections.set(name, {
-                _rawWS: ws,
-                name,
-                color,
-                timeConnected: Date.now(),
-              });
-              broadcastMessage({ _tag: "join", name, color });
-              break;
-            }
-            case "message": {
-              if (connectionName) {
-                const conn = currentConnections.get(connectionName);
-                if (conn) {
-                  broadcastMessage({
-                    _tag: "message",
-                    name: conn.name,
-                    color: conn.color,
-                    message: parsedMessage.message,
-                    timestamp: Date.now(),
-                  });
+        res.end(JSON.stringify(message));
+      });
+
+      const wss = yield* WSSServer;
+
+      wss.on("connection", (ws: WebSocket) => {
+        let connectionName: string;
+
+        ws.on("message", (data) => {
+          try {
+            const message = JSON.parse(data.toString());
+            const parsedMessage = pipe(
+              message,
+              Schema.decodeUnknownSync(
+                Schema.Union(M.ServerIncomingMessage, M.StartupMessage)
+              )
+            );
+
+            switch (parsedMessage._tag) {
+              case "startup": {
+                const { color, name } = parsedMessage;
+                if (!M.colors.includes(color) || currentConnections.has(name)) {
+                  ws.close(); // Close the connection if the color is not available or the name is already taken
+                  return;
                 }
+
+                connectionName = name;
+                console.log(`New connection: ${name}`);
+                currentConnections.set(name, {
+                  _rawWS: ws,
+                  name,
+                  color,
+                  timeConnected: Date.now(),
+                });
+                broadcastMessage({ _tag: "join", name, color });
+                break;
               }
-              break;
+
+              case "message": {
+                if (connectionName) {
+                  const conn = currentConnections.get(connectionName);
+                  if (conn) {
+                    broadcastMessage({
+                      _tag: "message",
+                      name: conn.name,
+                      color: conn.color,
+                      message: parsedMessage.message,
+                      timestamp: Date.now(),
+                    });
+                  }
+                }
+                break;
+              }
+            }
+          } catch (err) {
+            console.error("Failed to process message:", err);
+          }
+        });
+
+        ws.on("close", () => {
+          if (connectionName) {
+            const conn = currentConnections.get(connectionName);
+            if (conn) {
+              broadcastMessage({
+                _tag: "leave",
+                name: conn.name,
+                color: conn.color,
+              });
+              currentConnections.delete(connectionName);
+              console.log(`Connection closed: ${connectionName}`);
             }
           }
-        } catch (err) {
-          console.error("Failed to process message:", err);
-        }
+        });
       });
 
-      ws.on("close", () => {
-        if (connectionName) {
-          const conn = currentConnections.get(connectionName);
-          if (conn) {
-            broadcastMessage({
-              _tag: "leave",
-              name: conn.name,
-              color: conn.color,
-            });
-            currentConnections.delete(connectionName);
-            console.log(`Connection closed: ${connectionName}`);
-          }
-        }
-      });
-    });
-
-    setInterval(() => {
-      console.log("Current connections:", currentConnections.size);
-    }, 1000);
-  })
-);
+      setInterval(() => {
+        console.log("Current connections:", currentConnections.size);
+      }, 1000);
+    })
+  );
 
 pipe(
   Layer.merge(main, ListenLive),

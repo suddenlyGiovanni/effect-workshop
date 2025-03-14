@@ -200,6 +200,8 @@ const string2 = ASCIIString("hello🌍");
 
 If we want to avoid the overhead of a object, we can 'brand' a type. Using `Brand.refined` we can create a constructor
 
+___
+
 # Part 2
 
 ## Schema
@@ -257,6 +259,9 @@ Using `transformOrFail` we can create a transformation that could error. `ParseR
 
 Finally, `S.compose` is used to compose two schemas together.
 
+___
+
+
 # Part 3
 
 ## Stream
@@ -278,16 +283,20 @@ The answer is 'B'. `Stream.drop` ignores the first `n` elements of a stream, but
 #### With `Stream.asyncInterrupt`
 
 ```ts
-const testOne = Stream.asyncInterrupt<string, FileStreamError>((emit) => {
-  const fileStream = fs.createReadStream("test.txt");
+const testOne = Stream.async<string, FileStreamError>((emit) => {
+  const fileStream: ReadStream = fs.createReadStream("test.txt");
+
   fileStream.on("data", (chunk) =>
     emit(Effect.succeed(Chunk.of(chunk.toString())))
   );
+
   fileStream.on("error", (error) =>
     emit(Effect.fail(Option.some(new FileStreamError(error))))
   );
+
   fileStream.on("end", () => emit(Effect.fail(Option.none())));
-  return Either.left(Effect.sync(() => fileStream.close()));
+
+  return Effect.sync(() => fileStream.close());
 });
 ```
 
@@ -317,20 +326,18 @@ const testOne = Stream.asyncScoped<string, FileStreamError>((emit) =>
 
 First we create a scoped effect that creates and closes the file stream. Then we use `Stream.asyncScoped` to create the stream, knowing it will close the scope when it's done or interrupted.
 
-### Exercise 2
+### Exercise 3
 
 #### Manual Solution
 
 ```ts
-const testTwo = powersOfTwo.pipe(
-  Stream.mapAccum(null as null | number, (acc, next) => {
-    if (acc === next) {
-      return [acc, Option.none()];
-    } else {
-      return [next, Option.some(next)];
-    }
-  }),
-  Stream.filterMap(identity)
+const testTwo: Stream.Stream<number, never, never> = powersOfTwo.pipe(
+  Stream.mapAccum(null, (acc: null | number, next) =>
+    acc === next //
+      ? [acc, Option.none()]
+      : [next, Option.some(next)]
+  ),
+  Stream.filterMap(Function.identity)
 );
 ```
 

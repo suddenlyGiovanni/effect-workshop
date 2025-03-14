@@ -1,47 +1,62 @@
-import { Effect, Context, Console, Layer, pipe } from "effect";
 import * as fs from "node:fs/promises";
+import { Context, Effect, Layer, pipe } from "effect";
 
-// An Effect's third type parameter reperesents the 'services' it requires before it can be run
-// Only an Effect that requires no services (i.e. `Effect<_, _, never>`) can be run
+/**
+ * An Effect's third type parameter represents the 'services' it requires before it can be run
+ * Only an Effect that requires no services (i.e. `Effect<_, _, never>`) can be run
+ *
+ *
+ * Services are some kind of functionality that an effect requires to run.
+ * They are defined by their type signature
+ * When we 'use' a service in an effect, we do so INDEPENDENTLY of the service's implementation
+ * Then we can 'provide' the service to 'resolve' that dependency and run the effect
+ */
 
-// Services are some kind of functionality that an effect requires to run
-// They are defined by their type signature
-// When we 'use' a servive in an effect, we do so INDEPENDENTLY of the service's implementation
-// Then we can 'provide' the service to 'resolve' that dependency and run the effect
-
-// to start we'll define the type signature of a service
+/**
+ * 1. Defining a service type:
+ * to start, we'll define the type signature of a service
+ */
 interface RandomImpl {
   readonly next: Effect.Effect<number>;
   readonly nextIntBetween: (min: number, max: number) => Effect.Effect<number>;
 }
 
-// then we'll create a `Tag` for the service
-// a `Tag` is a unqiue placeholder for a service
-// we can use the `Tag` as if it were the service itself in our effects
-// and effect will take care of resolving the `Tag` to the actual service at runtime
+/**
+ * 2. Creating a Tag for the service:
+ * Then we'll create a `Tag` for the service.
+ *
+ * A `Tag` is a unique placeholder for a service.
+ *
+ * We can use the `Tag` as if it were the service itself in our effects
+ * and effect will take care of resolving the `Tag` to the actual service at runtime
+ */
 
 class Random extends Context.Tag("Random")<Random, RandomImpl>() {}
 
-// to use the tag, we work with it as if it was a Effect<RandoImpl>, in this case just 'yielding' it
-
-// program: Effect<'low' | 'high', never, Random> - notice how Random now appears in the third type parameter
-const program = Effect.gen(function* (_) {
-  const random = yield* _(Random);
-  const n = yield* _(random.nextIntBetween(1, 10));
-  if (n < 5) {
-    return "Low";
-  } else {
-    return "High";
+/**
+ * to use the tag, we work with it as if it was a Effect<RandoImpl>, in this case just 'yielding' it
+ *
+ *  notice how Random now appears in the third type parameter `Effect.Effect<'Low' | 'High', never, Random>`
+ */
+const program: Effect.Effect<"Low" | "High", never, Random> = Effect.gen(
+  function* () {
+    const random = yield* Random;
+    const n = yield* random.nextIntBetween(1, 10);
+    return n < 5 //
+      ? ("Low" as const)
+      : ("High" as const);
   }
-});
+);
 
-// if we try to run it right now, we'll get a type error
+/** If we try to run it right now, we'll get a type error */
 // Effect.runSync(program);
 
-// to resolve the dependency, we need to provide the service
-// the name "_Live" is commonly used to describe the 'live' implementation of a service
-// i.e. the actual implementation of the service that is used at runtime
-// also common is "_Test" to describe a test implementation of a service
+/**
+ * To resolve the dependency, we need to provide the service
+ * the name `_Live` is commonly used to describe the 'live' implementation of a service
+ * i.e. the actual implementation of the service that is used at runtime
+ * also common is `_Test` to describe a test implementation of a service
+ */
 
 const RandomLive: RandomImpl = {
   next: Effect.sync(() => Math.random()),
@@ -52,12 +67,17 @@ const RandomLive: RandomImpl = {
 // runnable: Effect<'low' | 'high', never, never>
 const runnable = program.pipe(Effect.provideService(Random, RandomLive));
 
-// now we can run the effect
+/**
+ * now we can run the effect
+ */
 console.log(Effect.runSync(runnable));
 
-// However, not all services are so simple
-// Some may require other services to be provided, or their construction may be effectful (or error)
-// In these cases effect has the `Layer<ROut, E, RIn>` type to help us manage these dependencies
+/**
+ * However, not all services are so simple;
+ *
+ * Some may require other services to be provided, or their construction may be effectful (or error)
+ * In these cases effect has the `Layer<ROut, E, RIn>` type to help us manage these dependencies
+ */
 
 class FeatureFlags extends Context.Tag("FeatureFlag")<
   FeatureFlags,
@@ -73,10 +93,12 @@ class ConfigFile extends Context.Tag("ConfigFile")<
   }
 >() {}
 
-// to create a layer from an effect, we use the `Layer.effect` function
-// think of this like the opposite of `flatMap`
-// instead of running after an effect, this effect is run prior to the effect
-// notice how we can use other tags just like normal, but they appear in the RIn type parameter
+/**
+ * To create a layer from an effect, we use the `Layer.effect` function
+ * think of this like the opposite of `flatMap`.
+ * Instead of running after an effect, this effect is run prior to the effect
+ * notice how we can use other tags just like normal, but they appear in the RIn type parameter
+ */
 
 // FeatureFlagsLive: Layer<FeatureFlags, never, ConfigFile>
 const FeatureFlagsLive = Layer.effect(
@@ -115,21 +137,28 @@ const ConfigFileLive = Layer.effect(
 
 declare const main: Effect.Effect<string, never, FeatureFlags>;
 
-// we can provide layers to an effect using the `Effect.provide` function
-// notice how this errors because we havent provided the ConfigFile layer to the FeatureFlags layer
+/**
+ * We can provide layers to an effect using the `Effect.provide` function
+ * notice how this errors because we haven't provided the ConfigFile layer to the FeatureFlags layer
+ */
 // const runnable2 = main.pipe(Effect.provide(FeatureFlagsLive));
 
 // finalLayer: Layer<FeatureFlags, Error, never>
 const finalLayer = Layer.provide(FeatureFlagsLive, ConfigFileLive);
 
-// now we can provide to main and run it
-
+/**
+ * now we can provide to main and run it
+ */
 pipe(main, Effect.provide(finalLayer), Effect.runPromise);
 
-// final note, something convient you can do with classes is define a static property with a layer implementation
-
+/**
+ * Final note:
+ */
 class Foo extends Context.Tag("Foo")<Foo, { readonly foo: string }>() {
-  static readonly live = Layer.effect(
+  /**
+   * Something convenient you can do with classes is defining a static property with a layer implementation
+   */
+  static readonly Live = Layer.effect(
     Foo,
     Effect.succeed({
       foo: "foo",
@@ -143,14 +172,18 @@ class Foo extends Context.Tag("Foo")<Foo, { readonly foo: string }>() {
     return foo.foo;
   });
 
-  const runnable = program.pipe(Effect.provide(Foo.live));
+  const runnable = program.pipe(Effect.provide(Foo.Live));
 }
 
-// also another common pattern in inferring the type of a service from the function that creates it
-
+/**
+ * Also another common pattern:
+ */
 const makeService = Effect.succeed({ foo: "foo" });
 class Foo2 extends Context.Tag("Foo")<
   Foo2,
+  /**
+   * inferring the type of the service from the function that creates it
+   */
   Effect.Effect.Success<typeof makeService>
 >() {
   static readonly Live = Layer.effect(Foo2, makeService);

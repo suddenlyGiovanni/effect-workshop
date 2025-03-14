@@ -1,7 +1,8 @@
-import { createServer } from "http";
-import { WebSocketServer, WebSocket } from "ws";
-import * as M from "./model";
-import * as S from "@effect/schema/Schema";
+import { createServer } from "node:http";
+import { Schema as S } from "effect";
+import { type WebSocket, WebSocketServer } from "ws";
+
+import * as M from "./model.ts";
 
 const currentConnections: Map<string, M.WebSocketConnection> = new Map();
 
@@ -36,7 +37,7 @@ wss.on("connection", (ws: WebSocket) => {
     try {
       const message = JSON.parse(data.toString());
       const parsedMessage = S.decodeUnknownSync(
-        S.union(M.ServerIncomingMessage, M.StartupMessage)
+        S.Union(M.ServerIncomingMessage, M.StartupMessage)
       )(message);
 
       switch (parsedMessage._tag) {

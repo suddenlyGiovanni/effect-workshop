@@ -1,6 +1,6 @@
+import * as fs from "node:fs/promises";
 import { Console, Effect, Option } from "effect";
 import meow from "meow";
-import * as fs from "node:fs/promises";
 
 const cli = meow(
   `
