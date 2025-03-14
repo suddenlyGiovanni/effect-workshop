@@ -11,7 +11,10 @@ Follow me on [Twitter](https://twitter.com/ethanniser) and [YouTube](https://www
 
 ## REQUIREMENTS:
 
-### A way to run typescript Node (with ts-node or tsx) or Bun
+Choose your runtime:
+ - Bun (recommended) 
+ - Node >= 23.6 will allow you to run TypeScript without transpiling
+ - Node < 23.6 with a typescript transpiler (like ts-node or tsx)
 
 https://nodejs.org/en
 
