@@ -1,89 +1,96 @@
+import { Args, Command, Options } from "@effect/cli";
+import {
+  FetchHttpClient,
+  FileSystem,
+  HttpClient,
+  HttpClientRequest,
+  type HttpClientResponse,
+} from "@effect/platform";
+import { BunContext, BunRuntime } from "@effect/platform-bun";
 import {
   Config,
   Console,
   Duration,
   Effect,
   Function,
-  Layer,
   Match,
   Option,
+  ParseResult,
+  Schema,
   pipe,
 } from "effect";
-import * as M from "./model";
-import * as S from "@effect/schema/Schema";
-import { BunRuntime, BunContext } from "@effect/platform-bun";
-import { FileSystem } from "@effect/platform";
-import * as Http from "@effect/platform/HttpClient";
-import { Command, Options, Args } from "@effect/cli";
-import { ParseResult } from "@effect/schema";
+
+import * as M from "./model.ts";
 
 const main = Effect.gen(function* (_) {
-  const options = yield* _(M.CLIOptions);
+  const options = yield* M.CLIOptions;
 
-  const fetch = yield* _(Http.client.Client);
+  const client: HttpClient.HttpClient = yield* HttpClient.HttpClient;
 
   const body = Option.getOrUndefined(options.data);
-  const req = Match.value(options.method)
+  const req: HttpClientRequest.HttpClientRequest = Match.value(options.method)
     .pipe(
-      Match.when("GET", () => Http.request.get),
-      Match.when("POST", () => Http.request.post),
-      Match.when("PUT", () => Http.request.put),
-      Match.when("PATCH", () => Http.request.patch),
-      Match.when("DELETE", () => Http.request.del),
+      Match.when("GET", () => HttpClientRequest.get),
+      Match.when("POST", () => HttpClientRequest.post),
+      Match.when("PUT", () => HttpClientRequest.put),
+      Match.when("PATCH", () => HttpClientRequest.patch),
+      Match.when("DELETE", () => HttpClientRequest.del),
       Match.exhaustive
     )(options.url)
     .pipe(
-      Http.request.setHeaders(options.headers),
-      body ? Http.request.textBody(body) : Function.identity
+      HttpClientRequest.setHeaders(options.headers),
+      body ? HttpClientRequest.bodyText(body) : Function.identity
     );
 
-  const res = yield* _(fetch(req), Effect.timeout(options.timeout));
+  const res: HttpClientResponse.HttpClientResponse = yield* client
+    .execute(req)
+    .pipe(Effect.timeout(options.timeout));
 
   const buffer: string[] = [];
 
   if (Option.isSome(options.include)) {
     buffer.push(`${res.status}`);
-    Object.entries(res.headers).forEach(([key, value]) => {
+    for (const [key, value] of Object.entries(res.headers)) {
       buffer.push(`${key}: ${value}`);
-    });
+    }
     // Add an empty line to separate headers from body
     buffer.push("");
   }
 
-  const text = yield* _(res.text);
+  const text = yield* res.text;
   buffer.push(text);
 
   const finalString = buffer.join("\n");
 
-  const fs = yield* _(FileSystem.FileSystem);
-  yield* _(
-    Effect.matchEffect(options.output, {
-      onSuccess: (output) => fs.writeFileString(output, finalString),
-      onFailure: () => Console.log(finalString),
-    })
-  );
+  const fs: FileSystem.FileSystem = yield* FileSystem.FileSystem;
+  yield* Effect.matchEffect(options.output, {
+    onSuccess: (output) => fs.writeFileString(output, finalString),
+    onFailure: () => Console.log(finalString),
+  });
 }).pipe(Effect.scoped);
 
-const StringPairsFromStrings = S.array(S.string).pipe(
-  S.filter((arr) => arr.every((s) => s.split(": ").length === 2)),
-  S.transform(
-    S.array(S.tuple(S.string, S.string)),
-    (arr) =>
+const StringPairsFromStrings = Schema.Array(Schema.String).pipe(
+  Schema.filter((arr) => arr.every((s) => s.split(": ").length === 2)),
+  Schema.transform(Schema.Array(Schema.Tuple(Schema.String, Schema.String)), {
+    decode: (arr) =>
       arr.map((s) => s.split(": ") as unknown as readonly [string, string]),
-    (arr) => arr.map((s) => s.join(": "))
-  )
+    encode: (arr) => arr.map((s) => s.join(": ")),
+  })
 );
 
-export const DurationFromString = S.transformOrFail(
-  S.string,
-  S.DurationFromSelf,
-  (value, _, ast) =>
-    ParseResult.try({
-      try: () => Duration.decode(value as Duration.DurationInput),
-      catch: (error) =>
-        ParseResult.type(ast, value, "String is not valid DurationInput"),
-    }),
-  (duration) => ParseResult.succeed(`${Duration.toMillis(duration)} millis`)
+export const DurationFromString = Schema.transformOrFail(
+  Schema.String,
+  Schema.DurationFromSelf,
+  {
+    decode: (value, _, ast) =>
+      ParseResult.try({
+        try: () => Duration.decode(value as Duration.DurationInput),
+        catch: (error) =>
+          new ParseResult.Type(ast, value, "String is not valid DurationInput"),
+      }),
+    encode: (duration) =>
+      ParseResult.succeed(`${Duration.toMillis(duration)} millis`),
+  }
 );
 
 const urlArg = Args.text({ name: "url" }).pipe(
@@ -93,7 +100,7 @@ const urlArg = Args.text({ name: "url" }).pipe(
 const methodOption = Options.text("method").pipe(
   Options.withAlias("X"),
   Options.withDescription("The HTTP method to use"),
-  Options.withSchema(S.literal("GET", "POST", "PUT", "PATCH", "DELETE")),
+  Options.withSchema(Schema.Literal("GET", "POST", "PUT", "PATCH", "DELETE")),
   Options.withDefault("GET")
 );
 
@@ -196,7 +203,7 @@ const cli = pipe(
 
 pipe(
   cli,
-  Effect.provide(Http.client.layer),
+  Effect.provide(FetchHttpClient.layer),
   Effect.provide(BunContext.layer),
   BunRuntime.runMain
 );

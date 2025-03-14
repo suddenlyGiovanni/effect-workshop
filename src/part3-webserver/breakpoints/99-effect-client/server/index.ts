@@ -1,36 +1,63 @@
-import * as NodeContext from "@effect/platform-node/NodeContext";
-import * as Http from "@effect/platform/HttpServer";
-import { NodeRuntime } from "@effect/platform-node";
-import { Console, Effect, Layer, LogLevel, Logger } from "effect";
-import { HTTPServerLive, HttpLive } from "./http";
-import { WSSServer, WSSServerLive, WebSocketLive } from "./ws";
-import { NodeServerLive } from "./node";
-import { ConnectionStoreLive } from "./shared";
+import { HttpServer, type HttpServerError } from "@effect/platform";
+import { NodeContext, NodeRuntime } from "@effect/platform-node";
+import {
+  type ConfigError,
+  Console,
+  Effect,
+  Layer,
+  LogLevel,
+  Logger,
+} from "effect";
 
-const ServersLive = Layer.merge(HttpLive, WebSocketLive);
+import { HTTPServerLive, HttpLive } from "./http.ts";
+import { NodeServer } from "./node.ts";
+import { ConnectionStore } from "./shared.ts";
+import { WSSServer, WebSocketLive } from "./ws.ts";
 
-const StartMessage = Layer.effectDiscard(
-  Effect.gen(function* (_) {
-    const httpServer = yield* _(Http.server.Server);
-    const wssServer = yield* _(WSSServer);
+const ServersLive: Layer.Layer<
+  never,
+  never,
+  ConnectionStore | HttpServer.HttpServer | WSSServer
+> = Layer.merge(HttpLive, WebSocketLive);
+
+const StartMessage: Layer.Layer<
+  never,
+  never,
+  HttpServer.HttpServer | WSSServer
+> = Layer.effectDiscard(
+  Effect.gen(function* () {
+    const httpServer = yield* HttpServer.HttpServer;
+
+    const wssServer = yield* WSSServer;
+
     const httpPort =
       httpServer.address._tag === "TcpAddress"
         ? httpServer.address.port
         : "unknown";
-    yield* _(Console.log(`HTTP server listening on port ${httpPort}`));
+
+    yield* Console.log(`HTTP server listening on port ${httpPort}`);
+
     const wssAdress = wssServer.address();
+
     const wssPort =
-      typeof wssAdress === "string" ? wssAdress : wssAdress.port.toString();
-    yield* _(Console.log(`WebSocket server listening on port ${wssPort}`));
+      typeof wssAdress === "string" //
+        ? wssAdress
+        : wssAdress.port.toString();
+
+    yield* Console.log(`WebSocket server listening on port ${wssPort}`);
   })
 );
 
-const MainLive = ServersLive.pipe(
+const MainLive: Layer.Layer<
+  never,
+  ConfigError.ConfigError | HttpServerError.ServeError,
+  never
+> = ServersLive.pipe(
   Layer.merge(StartMessage),
   Layer.provide(HTTPServerLive),
-  Layer.provide(WSSServerLive),
-  Layer.provide(ConnectionStoreLive),
-  Layer.provide(NodeServerLive),
+  Layer.provide(WSSServer.Live),
+  Layer.provide(ConnectionStore.Live),
+  Layer.provide(NodeServer.Live),
   Layer.provide(NodeContext.layer),
   Layer.provide(Logger.minimumLogLevel(LogLevel.Debug))
 );

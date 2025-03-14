@@ -1,7 +1,6 @@
 import {
   Cause,
   Chunk,
-  Console,
   Data,
   Duration,
   Effect,
@@ -15,20 +14,32 @@ import {
 } from "effect";
 import type { FiberId } from "effect/FiberId";
 
-// Effect has a number of useful datatypes that are commonly used
-// Lets briefly go through them
+/**
+ * Effect has a number of useful datatypes that are commonly used
+ * Let's briefly go through them:
+ */
 
-// First is Option
-// Option is a datatype that represents a value that may or may not be present
-// type Option<A> = Some<A> | None
-// It is superior to using null or undefined because it is much more composable
+/**
+ * `Option`
+ *
+ * Option is a datatype that represents a value that may or may not be present
+ * ```ts
+ * type Option<A> = Some<A> | None
+ * ```
+ *
+ * It is superior to using `null` or `undefined` because it is much more composable
+ */
 
-// constructors
+/**
+ * `Option` constructors
+ */
 const none = Option.none();
 const some = Option.some(1);
 Option.fromNullable(null);
 
-// Common operations
+/**
+ * `Option` common operations:
+ */
 declare const opt: Option.Option<number>;
 
 if (Option.isSome(opt)) {
@@ -41,87 +52,126 @@ Option.match(opt, {
   onNone: () => 0,
 });
 
-// destructors
+/**
+ * `Option` destructors:
+ */
 Option.getOrElse(opt, () => 0);
 Option.getOrThrow(opt);
 Option.getOrNull(opt);
 Option.getOrUndefined(opt);
 
-// very similar to Option is Either
-// Either is a datatype that represents a value that may be one of two types
-// Options are really just Either's where the left type is void
+/**
+ * `Either`
+ *
+ * Very similar to Option is Either:
+ * Either is a datatype that represents a value that may be one of two types.
+ *
+ * Option is really just an Either where the left type is void
+ */
 
-const left = Either.left(1);
-const right = Either.right("error");
+const left: Either.Either<never, number> = Either.left(1);
+const right: Either.Either<string, never> = Either.right("error");
 
-// Common operations
-declare const e: Either.Either<number, string>;
-if (Either.isRight(e)) {
-  e.right;
+/**
+ * `Either` common operations:
+ */
+declare const _either: Either.Either<number, string>;
+if (Either.isRight(_either)) {
+  _either.right;
 }
-if (Either.isLeft(e)) {
-  e.left;
+if (Either.isLeft(_either)) {
+  _either.left;
 }
-Either.map(e, (x) => x.length);
-Either.mapLeft(e, (x) => x + 1);
-Either.mapBoth(e, {
-  onLeft: (x) => x + 1,
-  onRight: (x) => x.length,
+Either.map(_either, (right: number): number => right + 1);
+Either.mapLeft(_either, (left: string): number => left.length);
+Either.mapBoth(_either, {
+  onRight: (x: number): number => x + 1,
+  onLeft: (x: string): number => x.length,
 });
-Either.flatMap(e, (x) => Either.right(x + 1));
-Either.match(e, {
+Either.flatMap(_either, (right: number) => Either.right(right + 1));
+Either.match(_either, {
   onRight: (x) => x + 1,
   onLeft: (x) => x + 1,
 });
 
-// You might notice that these operations are very similar to Effect operations
-// That leads to the question, when should you use Option/Either and when should you use Effect?
-// and how to you convert from one to the other?
-
-// The key distinction is that while Effect's are lazy, Option/Either are eager
+/**
+ * You might notice that these operations are very similar to Effect operations...
+ * That leads to the questions:
+ *
+ * > 1. When should you use Option/Either and when should you use Effect?
+ * > 2. And how to you convert from one to the other?
+ *
+ * ---
+ *
+ * One key distinction is that
+ * - `Effect` operations are lazy,
+ * - while `Option | Either` operations are eager!
+ */
 const sideEffect = (x: number) => {
   console.log("side effect!");
   return x + 1;
 };
 
+/**
+ * Effects are lazy:
+ * Nothing has happened yet, the effect has not been run
+ */
 const effect = pipe(
   Effect.succeed(1),
-  Effect.map((x) => sideEffect(x))
+  Effect.map((x) => sideEffect(x)) // does not log 'side effect!' until run
 );
-// nothing has happened yet, the effect has not been run
 
+/**
+ * `Either | Option` are eager:
+ * The side effect has already happened
+ */
 const either = pipe(
   Either.left(1),
-  Either.mapLeft((x) => sideEffect(x))
+  Either.mapLeft((x) => sideEffect(x)) // logs 'side effect!'
 );
-// the side effect has already happened
 
-// so when should you use Option/Either?
-// 1. Interop with non-effect code- because option/either are purely synchronous
-// they are great for interoping with non-effect code while still preserving the benfits of
-// typed errors and composable operations
-// 2. As DATA- if you have a value that is either present or not, or is one of two types
-// Effects represent computations, Option/Either represent data- so use them as such
+/**
+ * When should you use Option/Either?
+ *
+ * 1. To Interop with non-effect code:
+ * 	Because option/either are purely synchronous, they are great for interoping
+ * 	with non-effect code while still preserving the benefits of typed errors and
+ * 	composable operations
+ *
+ * 2. When you just need to represent DATA:
+ * 	- Effects represent computations
+ * 	- Option/Either represent data: if you have a value that is either present or not, or is one of two types.
+ */
 
-// even if its for things that are not side effects, or dont require any services
+/**
+ * even if It's for things that are not side effects, or don't require any services
+ */
 declare function doLogicThatMightFail1(): Either.Either<string, Error>;
-// if this can be an effect, make it an effect
+
+/**
+ * if this can be an effect, make it an effect
+ */
 declare function doLogicThatMightFail2(): Effect.Effect<string, Error>;
 
-// How do you convert from one to the other?
-
-// Option and Either are convieniently both subtypes of Effect, meaning they can be used interchangeably in any Effect context
-
-// Option<T> -> Effect<T, NoSuchElementException>
-// Either<E, A> -> Effect<A, E>
+/**
+ * How do you convert from one to the other?
+ *
+ * `Option` and `Either` are conveniently both subtypes of `Effect`,
+ * meaning they can be used interchangeably in any Effect context
+ *
+ * `Option<T>` -> `Effect<T, NoSuchElementException>`
+ * `Either<E, A>` -> `Effect<A, E>`
+ */
 
 const result = pipe(
   Option.some(5),
   Effect.flatMap((x) => Either.right(x.toString()))
 );
 
-// Next is Exit, which is basically a Either<A, Cause<E>>
-// It is used to represent the result of a computation
+/**
+ * Next is `Exit`, which is basically a `Either<A, Cause<E>>`
+ * It is used to represent the result of a computation
+ */
 
 const program = Effect.runSyncExit(Effect.succeed(1));
 
@@ -131,39 +181,46 @@ Exit.match(program, {
   onSuccess: (value) => console.log(`Exited with success value: ${value}`),
 });
 
-// what is a Cause?
-// It is a discriminated union of all the possible ways a computation can complete
-// Its variations are:
-// Empty (no error),
-// Fail (expected error),
-// Die (unexpected error),
-// Interrupt
-// Sequential (multiple causes that happened in sequence)
-// Parallel (multiple causes that happened in parallel)
+/**
+ * What is a `Cause`?
+ * It is a discriminated union of all the possible ways a computation can complete
+ *
+ * Its variations are:
+ * - `Empty` => (no error),
+ * - `Fail` => (expected error),
+ * - `Die` => (unexpected error),
+ * - `Interrupt`
+ * - `Sequential` =>  (multiple causes that happened in sequence)
+ * - `Parallel` => (multiple causes that happened in parallel)
+ */
 
 declare const cause: Cause.Cause<number>;
 Cause.match(cause, {
   onEmpty: undefined,
-  onFail: function (error: number): unknown {
+  onFail: (error: number): unknown => {
     throw new Error("Function not implemented.");
   },
-  onDie: function (defect: unknown): unknown {
+  onDie: (defect: unknown): unknown => {
     throw new Error("Function not implemented.");
   },
-  onInterrupt: function (fiberId: FiberId): unknown {
+  onInterrupt: (fiberId: FiberId): unknown => {
     throw new Error("Function not implemented.");
   },
-  onSequential: function (left: unknown, right: unknown): unknown {
+  onSequential: (left: unknown, right: unknown): unknown => {
     throw new Error("Function not implemented.");
   },
-  onParallel: function (left: unknown, right: unknown): unknown {
+  onParallel: (left: unknown, right: unknown): unknown => {
     throw new Error("Function not implemented.");
   },
 });
 
-// Duration is a datatype that represents a time duration
+/**
+ * Duration is a datatype that represents a time duration
+ */
 
-// constructors
+/**
+ * Duration constructors:
+ */
 Duration.millis(1000);
 Duration.seconds(1);
 Duration.minutes(1);
@@ -171,25 +228,34 @@ Duration.zero;
 Duration.infinity;
 Duration.decode("7 hours");
 
-// destructors
+/**
+ * Duration destructors
+ */
 Duration.toMillis(Duration.millis(1000));
 Duration.toSeconds(Duration.seconds(1));
 
-// operations
-
+/**
+ * Duration operations
+ */
 Duration.lessThan(Duration.millis(1000), Duration.seconds(1));
 Duration.greaterThan(Duration.millis(1000), Duration.seconds(1));
 Duration.sum(Duration.millis(1000), Duration.seconds(1));
 Duration.times(Duration.millis(1000), 4);
 
-// Effect also has a number of data structures
-// They are all functional and immutable
-
-// List: a linked list, HashMap, HashSet, RedBlackTree, and more
-
-// but the most common your likely to see is `Chunk`
-// Chunks are ordered collections of elements, often backed by an array
-// but are immutable, functional, and fast due to structural sharing
+/**
+ * Effect also has a number of data structures
+ * They are all functional and immutable
+ *
+ * - List: a linked list,
+ * - HashMap,
+ * - HashSet,
+ * - RedBlackTree,
+ * - and more...
+ *
+ * But the most common your likely to see is `Chunk`.
+ * `Chunks` are ordered collections of elements, often backed by an array,
+ * but are immutable, functional, and fast due to structural sharing
+ */
 
 const c1 = Chunk.make(1, 2, 3);
 const c2 = Chunk.fromIterable([1, 2, 3]);
@@ -197,12 +263,16 @@ const c3 = Chunk.append(c1, c2);
 const c4 = Chunk.drop(c3, 2);
 Chunk.toReadonlyArray(c4);
 
-// finally 'Traits'
-// Effect has two 'traits', Equal and Hash
-// They are used to compare two values with `Equals.equals` and hash a value with `Hash.hash`
-// All values have a default implementation, but you can provide your own for custom types
-// This is commonly used for checking deep equality of data structures
-// and for using values as keys in a Map or Set
+/**
+ * Finally 'Traits'.
+ *
+ *
+ * Effect has two 'traits', `Equal` and `Hash`.
+ * They are used to compare two values with `Equals.equals` and hash a value with `Hash.hash`.
+ * All values have a default implementation, but you can provide your own for custom types.
+ * This is commonly used for checking deep equality of data structures and for
+ * using values as keys in a Map or Set.
+ */
 
 const s1 = new Set<Chunk.Chunk<number>>();
 s1.add(Chunk.make(1, 2, 3));
@@ -214,18 +284,30 @@ s2 = HashSet.add(s2, Chunk.make(1, 2, 3));
 s2 = HashSet.add(s2, Chunk.make(1, 2, 3));
 console.log("s2", HashSet.size(s2)); // 1 because of structural equality
 
-// to 'implement' a trait you just provide a function with the 'equals' or 'hash' symbol
-// very similar to how you make a type iterable
+/**
+ * To 'implement' a trait you just provide a function with the 'equals' or 'hash' symbol
+ * very similar to how you make a type iterable
+ */
 
 class Foo1 {
-  constructor(readonly x: number) {}
+  public readonly x: number;
+
+  constructor(x: number) {
+    this.x = x;
+  }
 }
 
 class Foo2 implements Equal.Equal, Hash.Hash {
-  constructor(readonly x: number) {}
+  readonly x: number;
+
+  constructor(x: number) {
+    this.x = x;
+  }
+
   [Equal.symbol](that: unknown): boolean {
     return that instanceof Foo2 && that.x === this.x;
   }
+
   [Hash.symbol](): number {
     return Hash.number(this.x);
   }
@@ -240,8 +322,10 @@ console.log("s3", HashSet.size(s3)); // 3 because Foo2 are considered equal
 console.log(Equal.equals(new Foo1(1), new Foo1(1))); // false
 console.log(Equal.equals(new Foo2(1), new Foo2(1))); // true
 
-// The Data module contains a number of functions that implement deep equality and hashing for custom types for you
-
+/**
+ * The Data module contains a number of functions that implement deep equality
+ * and hashing for custom types for you.
+ */
 interface Foo3 {
   readonly a: number;
   readonly b: string;
@@ -259,8 +343,9 @@ interface TaggedFoo3 {
 const TaggedFoo3 = Data.tagged<TaggedFoo3>("Foo3");
 const tf3 = TaggedFoo3({ a: 1, b: "a" });
 
-// or in one step with classes
-
+/**
+ * or in one step with classes
+ */
 class Foo4 extends Data.Class<{ readonly a: number; readonly b: string }> {}
 const f4 = new Foo4({ a: 1, b: "a" });
 
@@ -270,16 +355,18 @@ class TaggedFoo4 extends Data.TaggedClass("Foo4")<{
 }> {}
 const tf4 = new TaggedFoo4({ a: 1, b: "a" });
 
-// custom behavior at the same time:
+/**
+ * custom behavior at the same time:
+ */
 class Foo5 extends Data.TaggedClass("Foo5")<{
   readonly a: number;
   readonly b: string;
 }> {
-  get c() {
+  get c(): number {
     return this.a + this.b.length;
   }
 
-  ab() {
+  ab(): string {
     return String(this.a) + this.b;
   }
 }
@@ -287,10 +374,11 @@ const f5 = new Foo5({ a: 1, b: "a" });
 console.log(f5.c); // 2
 console.log(f5.ab()); // "1a"
 
-// helper for creating tagged union of case classes
-
+/**
+ * helper for creating tagged union of case classes
+ */
 type AppState = Data.TaggedEnum<{
-  Startup: {};
+  Startup: Record<never, never>;
   Loading: {
     readonly status: string;
   };
@@ -321,16 +409,21 @@ switch (state._tag) {
     break;
 }
 
-// finally for creating custom error types there is Data.Error and Data.TaggedError
-
+/**
+ * Finally, for creating custom error types there is
+ * - `Data.Error` and
+ * - `Data.TaggedError`
+ */
 class FooError extends Data.Error<{ readonly a: number; readonly b: string }> {}
 class TaggedFooError extends Data.TaggedError("FooError")<{
   readonly a: number;
   readonly b: string;
 }> {}
 
-// these have the additonal benefit of being subtypes of Effect, so you dont have to wrap them in `Effect.fail`
-
-const errors = Effect.gen(function* (_) {
-  yield* _(new FooError({ a: 1, b: "a" }));
+/**
+ * These have the additional benefit of being subtypes of Effect, so you don't
+ * have to wrap them in `Effect.fail`.
+ */
+const errors = Effect.gen(function* () {
+  yield* new FooError({ a: 1, b: "a" });
 });

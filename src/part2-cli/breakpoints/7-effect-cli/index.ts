@@ -1,58 +1,71 @@
-import { Console, Effect, Function, Layer, Match, Option, pipe } from "effect";
-import * as M from "./model";
-import * as S from "@effect/schema/Schema";
-import { BunRuntime, BunContext } from "@effect/platform-bun";
-import { FileSystem } from "@effect/platform";
-import * as Http from "@effect/platform/HttpClient";
-import { Command, Options, Args } from "@effect/cli";
+import { Args, Command, Options } from "@effect/cli";
+import {
+  FetchHttpClient,
+  FileSystem,
+  HttpClient,
+  HttpClientRequest,
+  type HttpClientResponse,
+} from "@effect/platform";
+import { BunContext, BunRuntime } from "@effect/platform-bun";
+import {
+  Console,
+  Effect,
+  Function,
+  Match,
+  Option,
+  Schema as S,
+  pipe,
+} from "effect";
 
-const main = Effect.gen(function* (_) {
-  const options = yield* _(M.CLIOptions);
+import * as M from "./model.ts";
 
-  const fetch = yield* _(Http.client.Client);
+const main = Effect.gen(function* () {
+  const options = yield* M.CLIOptions;
+
+  const client: HttpClient.HttpClient = yield* HttpClient.HttpClient;
 
   const body = Option.getOrUndefined(options.data);
 
-  const req = yield* _(
+  const req: HttpClientRequest.HttpClientRequest = yield* pipe(
     Match.value(options.method)
       .pipe(
-        Match.when("GET", () => Http.request.get),
-        Match.when("POST", () => Http.request.post),
-        Match.when("PUT", () => Http.request.put),
-        Match.when("PATCH", () => Http.request.patch),
-        Match.when("DELETE", () => Http.request.del),
+        Match.when("GET", () => HttpClientRequest.get),
+        Match.when("POST", () => HttpClientRequest.post),
+        Match.when("PUT", () => HttpClientRequest.put),
+        Match.when("PATCH", () => HttpClientRequest.patch),
+        Match.when("DELETE", () => HttpClientRequest.del),
         Match.option
       )
       .pipe(
         Effect.map((reqBuilder) =>
           reqBuilder(options.url).pipe(
-            Http.request.setHeaders(options.headers),
-            body ? Http.request.textBody(body) : Function.identity
+            HttpClientRequest.setHeaders(options.headers),
+            body ? HttpClientRequest.bodyText(body) : Function.identity
           )
         )
       )
   );
 
-  const res = yield* _(fetch(req));
+  const res: HttpClientResponse.HttpClientResponse = yield* client.execute(req);
 
   const buffer: string[] = [];
 
   if (Option.isSome(options.include)) {
     buffer.push(`${res.status}`);
-    Object.entries(res.headers).forEach(([key, value]) => {
+    for (const [key, value] of Object.entries(res.headers)) {
       buffer.push(`${key}: ${value}`);
-    });
+    }
     // Add an empty line to separate headers from body
     buffer.push("");
   }
 
-  const text = yield* _(res.text);
+  const text = yield* res.text;
   buffer.push(text);
 
   const finalString = buffer.join("\n");
 
-  const fs = yield* _(FileSystem.FileSystem);
-  yield* _(
+  const fs: FileSystem.FileSystem = yield* FileSystem.FileSystem;
+  yield* pipe(
     Effect.matchEffect(options.output, {
       onSuccess: (output) => fs.writeFileString(output, finalString),
       onFailure: () => Console.log(finalString),
@@ -60,14 +73,13 @@ const main = Effect.gen(function* (_) {
   );
 }).pipe(Effect.scoped);
 
-const StringPairsFromStrings = S.array(S.string).pipe(
+const StringPairsFromStrings = S.Array(S.String).pipe(
   S.filter((arr) => arr.every((s) => s.split(": ").length === 2)),
-  S.transform(
-    S.array(S.tuple(S.string, S.string)),
-    (arr) =>
+  S.transform(S.Array(S.Tuple(S.String, S.String)), {
+    decode: (arr) =>
       arr.map((s) => s.split(": ") as unknown as readonly [string, string]),
-    (arr) => arr.map((s) => s.join(": "))
-  )
+    encode: (arr) => arr.map((s) => s.join(": ")),
+  })
 );
 
 const urlArg = Args.text({ name: "url" }).pipe(
@@ -77,7 +89,7 @@ const urlArg = Args.text({ name: "url" }).pipe(
 const methodOption = Options.text("method").pipe(
   Options.withAlias("X"),
   Options.withDescription("The HTTP method to use"),
-  Options.withSchema(S.literal("GET", "POST", "PUT", "PATCH", "DELETE")),
+  Options.withSchema(S.Literal("GET", "POST", "PUT", "PATCH", "DELETE")),
   Options.withDefault("GET")
 );
 
@@ -127,7 +139,7 @@ const cli = pipe(
 
 pipe(
   cli,
-  Effect.provide(Http.client.layer),
+  Effect.provide(FetchHttpClient.layer),
   Effect.provide(BunContext.layer),
   BunRuntime.runMain
 );

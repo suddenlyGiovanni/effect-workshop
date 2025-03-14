@@ -1,7 +1,9 @@
-import { Console, Effect, Exit, Option, pipe } from "effect";
-import meow from "meow";
-import * as M from "./model";
 import * as fs from "node:fs/promises";
+import { Console, Effect, Exit, Option, pipe } from "effect";
+import type { UnknownException } from "effect/Cause";
+import meow from "meow";
+
+import * as M from "./model.ts";
 
 const cli = meow(
   `
@@ -54,6 +56,76 @@ if (!arg) {
   process.exit(1);
 }
 
+interface CLIOptions {
+  method: string;
+  data: string | undefined;
+  headers: string[] | undefined;
+  output: string | undefined;
+  include: boolean | undefined;
+}
+
+function main(
+  url: string,
+  options?: CLIOptions
+): Effect.Effect<
+  void,
+  M.HeaderParseError | M.UnknownError | M.TextDecodeError | UnknownException,
+  never
+> {
+  return Effect.gen(function* () {
+    const headers: [key: string, value: string][] = options?.headers
+      ? yield* Effect.reduce(
+          options.headers,
+          new Array<[string, string]>(),
+          (acc, header) => {
+            const [key, value] = header.split(":");
+            if (!key || !value) {
+              return Effect.fail(new M.HeaderParseError());
+            }
+            acc.push([key, value]);
+            return Effect.succeed(acc);
+          }
+        )
+      : [];
+
+    const res: Response = yield* Effect.tryPromise({
+      try: (signal) =>
+        fetch(url, {
+          ...(options?.method && { method: options.method }),
+          ...(options?.data && { body: options.data }),
+          headers,
+          signal,
+        }),
+      catch: (error) => new M.UnknownError({ error }),
+    });
+
+    const buffer: string[] = [];
+
+    if (options?.include) {
+      buffer.push(`${res.status} ${res.statusText}`);
+      res.headers.forEach((value, key) => {
+        buffer.push(`${key}: ${value}`);
+      });
+      // Add an empty line to separate headers from body
+      buffer.push("");
+    }
+
+    const text = yield* Effect.tryPromise({
+      try: () => res.text(),
+      catch: () => new M.TextDecodeError(),
+    });
+
+    buffer.push(text);
+
+    const finalString = buffer.join("\n");
+    yield* Effect.matchEffect(Option.fromNullable(options?.output), {
+      onSuccess: (output) =>
+        Effect.tryPromise(() => fs.writeFile(output, finalString)),
+      onFailure: () => Console.log(finalString),
+    });
+  });
+}
+
 const exit = await pipe(
   main(arg, cli.flags),
   Effect.catchTags({
@@ -70,73 +142,3 @@ Exit.match(exit, {
     process.exit(1);
   },
 });
-
-interface CLIOptions {
-  method: string;
-  data: string | undefined;
-  headers: string[] | undefined;
-  output: string | undefined;
-  include: boolean | undefined;
-}
-
-function main(url: string, options?: CLIOptions) {
-  return Effect.gen(function* (_) {
-    const headers = options?.headers
-      ? yield* _(
-          Effect.reduce(
-            options.headers,
-            new Array<[string, string]>(),
-            (acc, header) => {
-              const [key, value] = header.split(":");
-              if (!key || !value) {
-                return Effect.fail(new M.HeaderParseError());
-              }
-              acc.push([key, value]);
-              return Effect.succeed(acc);
-            }
-          )
-        )
-      : [];
-
-    const res = yield* _(
-      Effect.tryPromise({
-        try: (signal) =>
-          fetch(url, {
-            ...(options?.method && { method: options.method }),
-            ...(options?.data && { body: options.data }),
-            headers,
-            signal,
-          }),
-        catch: (error) => new M.UnknownError({ error }),
-      })
-    );
-
-    const buffer: string[] = [];
-
-    if (options?.include) {
-      buffer.push(`${res.status} ${res.statusText}`);
-      res.headers.forEach((value, key) => {
-        buffer.push(`${key}: ${value}`);
-      });
-      // Add an empty line to separate headers from body
-      buffer.push("");
-    }
-
-    const text = yield* _(
-      Effect.tryPromise({
-        try: () => res.text(),
-        catch: () => new M.TextDecodeError(),
-      })
-    );
-    buffer.push(text);
-
-    const finalString = buffer.join("\n");
-    yield* _(
-      Effect.matchEffect(Option.fromNullable(options?.output), {
-        onSuccess: (output) =>
-          Effect.tryPromise(() => fs.writeFile(output, finalString)),
-        onFailure: () => Console.log(finalString),
-      })
-    );
-  });
-}

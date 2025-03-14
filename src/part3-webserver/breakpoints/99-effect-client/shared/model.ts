@@ -1,16 +1,12 @@
-import type { ParseError } from "@effect/schema/ParseResult";
-import * as S from "@effect/schema/Schema";
 import {
-  Context,
-  PubSub,
-  HashMap,
-  Ref,
-  Stream,
   Data,
-  Fiber,
-  Queue,
-  Effect,
+  type Effect,
+  type Fiber,
+  type Queue,
+  Schema,
+  type Stream,
 } from "effect";
+import type { ParseError } from "effect/ParseResult";
 
 export const colors = [
   "red",
@@ -22,75 +18,71 @@ export const colors = [
   "white",
 ] as const;
 export type Color = (typeof colors)[number];
-export const Color = S.literal(...colors);
+export const Color = Schema.Literal(...colors);
 
-export const StartupMessage = S.struct({
-  _tag: S.literal("startup"),
+export const StartupMessage = Schema.Struct({
+  _tag: Schema.Literal("startup"),
   color: Color,
-  name: S.string,
+  name: Schema.String,
 });
 
-export const StartupMessageFromJSON = S.parseJson(StartupMessage);
+export const StartupMessageFromJSON = Schema.parseJson(StartupMessage);
 
-export type StartupMessage = S.Schema.To<typeof StartupMessage>;
+export type StartupMessage = Schema.Schema.Type<typeof StartupMessage>;
 
 export class BadStartupMessageError extends Data.TaggedError(
   "BadStartupMessage"
 )<{
   readonly error:
-    | {
-        readonly _tag: "parseError";
-        readonly parseError: ParseError;
-      }
-    | {
-        readonly _tag: "colorAlreadyTaken";
-        readonly color: Color;
-      };
+    | { readonly _tag: "parseError"; readonly parseError: ParseError }
+    | { readonly _tag: "colorAlreadyTaken"; readonly color: Color };
 }> {}
 
-export const ServerIncomingMessage = S.union(
-  S.struct({
-    _tag: S.literal("message"),
-    message: S.string,
-  })
+export const ServerIncomingMessage = Schema.Union(
+  Schema.Struct({ _tag: Schema.Literal("message"), message: Schema.String })
 );
 
-export const ServerIncomingMessageFromJSON = S.parseJson(ServerIncomingMessage);
+export const ServerIncomingMessageFromJSON = Schema.parseJson(
+  ServerIncomingMessage
+);
 
-export type ServerIncomingMessage = S.Schema.To<typeof ServerIncomingMessage>;
+export type ServerIncomingMessage = Schema.Schema.Type<
+  typeof ServerIncomingMessage
+>;
 
 export class UnknownIncomingMessageError extends Data.TaggedError(
   "UnknownIncomingMessage"
-)<{
-  readonly rawMessage: string;
-  readonly parseError: ParseError;
-}> {}
+)<{ readonly rawMessage: string; readonly parseError: ParseError }> {}
 
 export class WebSocketError extends Data.TaggedError("WebSocketError")<{
   readonly error: Error;
 }> {}
 
-export const ServerOutgoingMessage = S.union(
-  S.struct({
-    _tag: S.literal("message"),
-    name: S.string,
+export const ServerOutgoingMessage = Schema.Union(
+  Schema.Struct({
+    _tag: Schema.Literal("message"),
+    name: Schema.String,
     color: Color,
-    message: S.string,
-    timestamp: S.number,
+    message: Schema.String,
+    timestamp: Schema.Number,
   }),
-  S.struct({
-    _tag: S.literal("join"),
-    name: S.string,
+  Schema.Struct({
+    _tag: Schema.Literal("join"),
+    name: Schema.String,
     color: Color,
   }),
-  S.struct({
-    _tag: S.literal("leave"),
-    name: S.string,
+  Schema.Struct({
+    _tag: Schema.Literal("leave"),
+    name: Schema.String,
     color: Color,
   })
 );
-export const ServerOutgoingMessageFromJSON = S.parseJson(ServerOutgoingMessage);
-export type ServerOutgoingMessage = S.Schema.To<typeof ServerOutgoingMessage>;
+export const ServerOutgoingMessageFromJSON = Schema.parseJson(
+  ServerOutgoingMessage
+);
+export type ServerOutgoingMessage = Schema.Schema.Type<
+  typeof ServerOutgoingMessage
+>;
 
 export interface WebSocketConnection<Incoming, Outgoing> {
   readonly _rawWS: WebSocket;
@@ -103,11 +95,11 @@ export interface WebSocketConnection<Incoming, Outgoing> {
   readonly close: Effect.Effect<void>;
 }
 
-export const AvailableColorsResponse = S.struct({
-  _tag: S.literal("availableColors"),
-  colors: S.array(Color),
+export const AvailableColorsResponse = Schema.Struct({
+  _tag: Schema.Literal("availableColors"),
+  colors: Schema.Array(Color),
 });
 
-export type AvailableColorsResponse = S.Schema.To<
+export type AvailableColorsResponse = Schema.Schema.Type<
   typeof AvailableColorsResponse
 >;

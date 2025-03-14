@@ -1,11 +1,7 @@
-import { ParseResult } from "@effect/schema";
-import * as S from "@effect/schema/Schema";
-import { Types } from "effect";
-import * as T from "../../testDriver";
-import { ParseError } from "@effect/schema/ParseResult";
+import { Schema, type Types } from "effect";
+import { ParseError } from "effect/ParseResult";
 
-// Exercise 1
-// Make a schema that parses to each of the following types
+import * as T from "../../testDriver.ts";
 
 type A = {
   readonly bool: boolean;
@@ -27,11 +23,16 @@ type E = {
   readonly partial: Partial<A>;
 };
 
-const A = S.never;
-const B = S.never;
-const C = S.never;
-const D = S.never;
-const E = S.never;
+/**
+ * # Exercise 1:
+ *
+ * Make a schema that parses to each of the following types
+ */
+const A = Schema.Never;
+const B = Schema.Never;
+const C = Schema.Never;
+const D = Schema.Never;
+const E = Schema.Never;
 
 type AllTrue<T extends boolean[]> = T extends [infer First, ...infer Rest]
   ? First extends true
@@ -40,37 +41,47 @@ type AllTrue<T extends boolean[]> = T extends [infer First, ...infer Rest]
       : never
     : false
   : true;
-type TestA = Types.Equals<A, S.Schema.To<typeof A>>;
-type TestB = Types.Equals<B, S.Schema.To<typeof B>>;
-type TestC = Types.Equals<C, S.Schema.To<typeof C>>;
-type TestD = Types.Equals<D, S.Schema.To<typeof D>>;
-type TestE = Types.Equals<E, S.Schema.To<typeof E>>;
 
+type TestA = Types.Equals<A, Schema.Schema.Type<typeof A>>;
+type TestB = Types.Equals<B, Schema.Schema.Type<typeof B>>;
+type TestC = Types.Equals<C, Schema.Schema.Type<typeof C>>;
+type TestD = Types.Equals<D, Schema.Schema.Type<typeof D>>;
+type TestE = Types.Equals<E, Schema.Schema.Type<typeof E>>;
+
+/**
+ * Test: expect `AllTests` to be true!
+ */
 type AllTests = AllTrue<[TestA, TestB, TestC, TestD, TestE]>;
-//  ^^ This should be true
+//  	^?
 
-// Exercise 2
+/**
+ *  # Exercise 2:
+ *
+ * First write a schema that transforms a string to a `URL` (I've provide a URL schema for you)
+ * if you can: consider how to handle the URL constructor throwing an error
+ */
 
-// First write a schema that transforms a string to a `URL` (I've provide a URL schema for you)
-// if you can: consider how to handle the URL constructor throwing an error
+const URLSchema = Schema.declare((input): input is URL => input instanceof URL);
 
-const URLSchema = S.declare((input): input is URL => input instanceof URL);
+const URLFromString: Schema.Schema<URL, string> = Schema.Any;
 
-const URLFromString: S.Schema<URL, string> = S.any;
+/**
+ * Now write a schema that filters out URLs that are not https
+ */
+const IsHttps: Schema.Schema<URL, URL> = Schema.Any;
 
-// Now write a schema that filters out URLs that are not https
-const IsHttps: S.Schema<URL, URL> = S.any;
-
-// Now using those, create a schema that can decode a string and asserts that it is a valid https URL
-const HttpsURL: S.Schema<URL, string> = S.any;
+/**
+ * Now using those, create a schema that can decode a string and asserts that it is a valid https URL
+ */
+const HttpsURL: Schema.Schema<URL, string> = Schema.Any;
 
 const goodInput = "https://example.com";
 const badInput = "http://example.com";
 const reallyBadInput = "not a url";
 
-const testOne = S.decode(HttpsURL)(goodInput);
-const testTwo = S.decode(HttpsURL)(badInput);
-const testThree = S.decode(HttpsURL)(reallyBadInput);
+const testOne = Schema.decode(HttpsURL)(goodInput);
+const testTwo = Schema.decode(HttpsURL)(badInput);
+const testThree = Schema.decode(HttpsURL)(reallyBadInput);
 
 await T.testRunAssert(1, testOne, {
   successIs: (url) => url instanceof URL,

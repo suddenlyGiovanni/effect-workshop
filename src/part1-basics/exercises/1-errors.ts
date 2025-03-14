@@ -1,24 +1,33 @@
-import { Effect, Either, Option, ReadonlyArray } from "effect";
-import * as T from "../../testDriver";
+import { Array, Effect, Either, Option } from "effect";
+import * as T from "../../testDriver.ts";
 
-// Exercise 1
-// Come up with a way to run this effect until it succeeds, no matter how many times it fails
+/**
+ * # Exercise 1:
+ *
+ * Come up with a way to run this effect until it succeeds, no matter how many times it fails!
+ */
 
 let i = 0;
-const eventuallySuceeds = Effect.suspend(() =>
+const eventuallySucceeds = Effect.suspend(() =>
   i++ < 100 ? Effect.fail("error") : Effect.succeed(5)
 );
 
-const testOne = eventuallySuceeds;
+const testOne = eventuallySucceeds;
 
 await T.testRunAssert(1, testOne, { success: 5 });
 
-// Exercise 2
-// Instead of short circuiting on the first error, collect all errors and fail with an array of them
+/**
+ * # Exercise 2
+ *
+ * Instead of short-circuiting on the first error, collect all errors, and fail with an array of them
+ */
 
 const maybeFail = (j: number) =>
   j % 2 !== 0 ? Effect.fail(`odd ${j}`) : Effect.succeed(j);
-const maybeFailArr = new Array(10).fill(0).map((_, i) => maybeFail(i + 1));
+const maybeFailArr = Array.allocate<number>(10)
+  .fill(0)
+  .map((_, index) => index + 1)
+  .map((number) => maybeFail(number));
 
 const testTwo = Effect.all(maybeFailArr);
 
@@ -26,8 +35,11 @@ const testTwo = Effect.all(maybeFailArr);
 //   failure: ["odd 1", "odd 3", "odd 5", "odd 7", "odd 9"],
 // });
 
-// Exercise 3
-// Now succeed with both a array of success values and an array of errors
+/**
+ * # Exercise 3:
+ *
+ * Now `succeed` with both an array of success values and an array of errors
+ */
 
 const testThree = Effect.all(maybeFailArr);
 

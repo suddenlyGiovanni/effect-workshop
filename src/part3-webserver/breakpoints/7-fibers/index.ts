@@ -1,26 +1,43 @@
-import { Console, Effect, Layer, pipe } from "effect";
+import { HttpServer } from "@effect/platform";
 import { BunRuntime } from "@effect/platform-bun";
-import * as HTTP from "./http";
-import * as Http from "@effect/platform/HttpServer";
-import * as WS from "./ws";
-import * as SERVER from "./shared";
-import { WSSServer } from "./shared";
+import { Console, Effect, Layer, type Scope, pipe } from "effect";
 
-const serversLayer = Layer.merge(HTTP.Live, WS.Live);
+import * as HTTP from "./http.ts";
+import * as SERVER from "./shared.ts";
+import * as WS from "./ws.ts";
 
-const StartMessage = Layer.effectDiscard(
-  Effect.gen(function* (_) {
-    const httpServer = yield* _(Http.server.Server);
-    const wssServer = yield* _(WSSServer);
+const serversLayer: Layer.Layer<
+  never,
+  Error,
+  | HttpServer.HttpServer
+  | SERVER.CurrentConnections
+  | Scope.Scope
+  | SERVER.WSSServer
+> = Layer.merge(HTTP.Live, WS.Live);
+
+const StartMessage: Layer.Layer<
+  never,
+  never,
+  SERVER.WSSServer | HttpServer.HttpServer
+> = Layer.effectDiscard(
+  Effect.gen(function* () {
+    const httpServer = yield* HttpServer.HttpServer;
+
+    const wssServer = yield* SERVER.WSSServer;
+
     const httpPort =
       httpServer.address._tag === "TcpAddress"
         ? httpServer.address.port
         : "unknown";
-    yield* _(Console.log(`HTTP server listening on port ${httpPort}`));
+
+    yield* Console.log(`HTTP server listening on port ${httpPort}`);
+
     const wssAdress = wssServer.address();
+
     const wssPort =
       typeof wssAdress === "string" ? wssAdress : wssAdress.port.toString();
-    yield* _(Console.log(`WebSocket server listening on port ${wssPort}`));
+
+    yield* Console.log(`WebSocket server listening on port ${wssPort}`);
   })
 );
 
@@ -30,6 +47,7 @@ pipe(
   Layer.provide(HTTP.HTTPServerLive),
   Layer.provide(SERVER.HttpServer.Live),
   Layer.provide(SERVER.CurrentConnections.Live),
-  Layer.launch,
+  Layer.launch, // converts the Layers into an Effect and keeps it alive until interrupted.
+  Effect.scoped, // This properly handles the Scope context requirement
   BunRuntime.runMain
 );

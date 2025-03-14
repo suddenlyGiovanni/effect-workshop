@@ -1,20 +1,28 @@
-import { Context, Effect, HashMap, Layer, Ref } from "effect";
-import * as M from "./model";
+import { Context, Effect, HashMap, Layer, Ref, pipe } from "effect";
+
+import * as M from "./model.ts";
 
 export class ConnectionStore extends Context.Tag("ConnectionStore")<
   ConnectionStore,
   M.ConnectionStore
->() {}
-export const ConnectionStoreLive = Layer.effect(
-  ConnectionStore,
-  Ref.make(HashMap.empty<string, M.ServerWebSocketConnection>())
-);
-
-export const getAvailableColors = Effect.gen(function* (_) {
-  const store = yield* _(ConnectionStore);
-  const connectionsMap = yield* _(Ref.get(store));
-  const usedColors = Array.from(HashMap.values(connectionsMap)).map(
-    (_) => _.color
+>() {
+  public static readonly Live = Layer.effect(
+    ConnectionStore,
+    Ref.make(HashMap.empty<string, M.ServerWebSocketConnection>())
   );
-  return M.colors.filter((color) => !usedColors.includes(color));
-});
+}
+
+export const getAvailableColors: Effect.Effect<
+  M.Color[],
+  never,
+  ConnectionStore
+> = pipe(
+  ConnectionStore,
+  Effect.flatMap((store) => Ref.get(store)),
+  Effect.map((connectionsMap) => {
+    const usedColors = Array.from(HashMap.values(connectionsMap)).map(
+      (_) => _.color
+    );
+    return M.colors.filter((color) => !usedColors.includes(color));
+  })
+);

@@ -1,5 +1,5 @@
-import meow from "meow";
 import * as fs from "node:fs/promises";
+import meow from "meow";
 
 const cli = meow(
   `

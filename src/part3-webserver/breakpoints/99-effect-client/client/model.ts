@@ -1,16 +1,16 @@
-import type { Stream, Fiber, Queue } from "effect";
 import {
-  StartupMessage,
-  StartupMessageFromJSON,
   BadStartupMessageError,
-  ServerIncomingMessage as ClientOutgoingMessage,
-  ServerIncomingMessageFromJSON as ClientOutgoingMessageFromJSON,
   ServerOutgoingMessage as ClientIncomingMessage,
   ServerOutgoingMessageFromJSON as ClientIncomingMessageFromJSON,
-  WebSocketError,
+  ServerIncomingMessage as ClientOutgoingMessage,
+  ServerIncomingMessageFromJSON as ClientOutgoingMessageFromJSON,
+  StartupMessage,
+  StartupMessageFromJSON,
   UnknownIncomingMessageError,
   type WebSocketConnection,
-} from "../shared/model";
+  WebSocketError,
+} from "../shared/model.ts";
+
 export {
   StartupMessage,
   StartupMessageFromJSON,
@@ -23,7 +23,7 @@ export {
   UnknownIncomingMessageError,
 };
 
-export { colors, Color, AvailableColorsResponse } from "../shared/model";
+export { colors, Color, AvailableColorsResponse } from "../shared/model.ts";
 
 export interface ClientWebSocketConnection
   extends WebSocketConnection<ClientIncomingMessage, ClientOutgoingMessage> {}

@@ -1,4 +1,4 @@
-import { Context, Data, Duration, Option } from "effect";
+import { Context, Data, type Duration, type Option } from "effect";
 
 export class UnknownError extends Data.TaggedError("UnknownError")<{
   readonly error: unknown;

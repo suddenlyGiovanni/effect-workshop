@@ -1,5 +1,5 @@
-import meow from "meow";
 import * as fs from "node:fs/promises";
+import meow from "meow";
 
 const cli = meow(
   `
@@ -112,16 +112,16 @@ async function runRequest(
     headers?: string[][] | undefined;
     timeout?: number | undefined;
   }
-) {
+): Promise<Response> {
   const abortController = new AbortController();
 
-  let timeout: NodeJS.Timeout | undefined = undefined;
+  let timeout: Timer | undefined = undefined;
 
   if (options?.timeout) {
     timeout = setTimeout(() => abortController.abort(), options.timeout);
   }
 
-  const res = await fetch(url, {
+  const res: Response = await fetch(url, {
     ...(options?.method && { method: options.method }),
     ...(options?.data && { body: options.data }),
     ...(options?.headers && { headers: options.headers }),
