@@ -20,11 +20,11 @@ import { Console, Effect, Exit, Scope, pipe } from "effect";
  * But it makes sense, because we have to be able to add to them after the scope is created
  */
 
-const one = Effect.gen(function* (_) {
-  const scope = yield* _(Scope.make());
-  yield* _(Scope.addFinalizer(scope, Console.log("Finalizer 1")));
-  yield* _(Scope.addFinalizer(scope, Console.log("Finalizer 2")));
-  yield* _(Scope.close(scope, Exit.succeed("scope closed")));
+const one = Effect.gen(function* () {
+  const scope = yield* pipe(Scope.make());
+  yield* Scope.addFinalizer(scope, Console.log("Finalizer 1"));
+  yield* Scope.addFinalizer(scope, Console.log("Finalizer 2"));
+  yield* Scope.close(scope, Exit.succeed("scope closed"));
 });
 
 Effect.runSync(one);
@@ -37,9 +37,9 @@ Effect.runSync(one);
  * For resources that only have a 'release' phase, we can use `addFinalizer`
  */
 
-const two: Effect.Effect<void, never, Scope.Scope> = Effect.gen(function* (_) {
-  yield* _(Effect.addFinalizer(() => Console.log("Last!")));
-  yield* _(Console.log("First"));
+const two: Effect.Effect<void, never, Scope.Scope> = Effect.gen(function* () {
+  yield* Effect.addFinalizer(() => Console.log("Last!"));
+  yield* Console.log("First");
 });
 /**
  * notice the error though, the 'scope' is present as a service requirement
@@ -59,8 +59,8 @@ Effect.runSync(three);
 /**
  * look what happens if we move where we provide the scope
  */
-const four = Effect.gen(function* (_) {
-  yield* _(
+const four = Effect.gen(function* () {
+  yield* pipe(
     Effect.addFinalizer(() => Console.log("Last!")),
     Effect.scoped
   );
@@ -114,10 +114,10 @@ await Effect.runPromise(program2);
  * Which is possible if you close the scope too early
  */
 console.log("\n\n --- \n\n");
-const program3 = Effect.gen(function* (_) {
+const program3 = Effect.gen(function* () {
   const handle = yield* file;
   yield* Console.log("Using file");
-  yield* _(
+  yield* pipe(
     Effect.tryPromise(() => handle.readFile()),
     Effect.andThen((buf) => Console.log(buf.toString()))
   );
@@ -126,10 +126,10 @@ const program3 = Effect.gen(function* (_) {
 await Effect.runPromise(program3);
 
 console.log("\n\n --- \n\n");
-const program4 = Effect.gen(function* (_) {
-  const handle = yield* _(file, Effect.scoped); // scope closed, but resource is still used- no type error! scary!
+const program4 = Effect.gen(function* () {
+  const handle = yield* pipe(file, Effect.scoped); // scope closed, but resource is still used- no type error! scary!
   yield* Console.log("Using file");
-  yield* _(
+  yield* pipe(
     Effect.tryPromise(() => handle.readFile()),
     Effect.andThen((buf) => Console.log(buf.toString()))
   );

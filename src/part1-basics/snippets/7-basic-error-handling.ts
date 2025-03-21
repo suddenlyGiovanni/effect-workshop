@@ -1,4 +1,4 @@
-import { Console, Effect, Either } from "effect";
+import { Console, Effect, Either, pipe } from "effect";
 
 /**
  * Errors are inevitable in any program, and we need to be able to handle them.
@@ -18,13 +18,13 @@ class BarError {
 
 const conditions = [true, true, true] as [boolean, boolean, boolean];
 
-const errors = Effect.gen(function* (_) {
+const errors = Effect.gen(function* () {
   if (conditions[0]) {
-    yield* _(Effect.fail(new FooError()));
+    yield* Effect.fail(new FooError());
   } else if (conditions[1]) {
-    yield* _(Effect.fail(new BarError()));
+    yield* Effect.fail(new BarError());
   } else if (conditions[2]) {
-    yield* _(Effect.die("Boom"));
+    yield* Effect.die("Boom");
   }
   return "Success";
 });
@@ -45,10 +45,10 @@ const errors = Effect.gen(function* (_) {
  * so if you have multiple errors, by default from that point on, the program will not continue unless you handle the error
  */
 
-const program = Effect.gen(function* (_) {
-  yield* _(Console.log("1"));
-  yield* _(Effect.fail(new Error("Boom")));
-  yield* _(Console.log("2")); // this will not run
+const program = Effect.gen(function* () {
+  yield* Console.log("1");
+  yield* Effect.fail(new Error("Boom"));
+  yield* Console.log("2"); // this will not run
 });
 
 /**
@@ -166,8 +166,8 @@ const mightFail = Effect.sync(() => Math.random()).pipe(
   )
 );
 
-const handledGen2 = Effect.gen(function* (_) {
-  const r = yield* _(
+const handledGen2 = Effect.gen(function* () {
+  const r = yield* pipe(
     mightFail,
     Effect.catchAll(() => Effect.succeed(-1))
   );

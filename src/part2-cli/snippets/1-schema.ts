@@ -109,7 +109,7 @@ if (Schema.is(NumberFromString)(unknown)) {
 /**
  * `validate` returns a `Effect<boolean, ParseError, R>`
  */
-const _ = Effect.gen(function* (_) {
+const _ = Effect.gen(function* () {
   if (yield* Schema.validate(NumberFromString)(unknown)) {
     takesNumber(unknown);
   }

@@ -107,8 +107,8 @@ const one = Effect.gen(function* () {
 /**
  * However, if we do our 'processing' inside the stream, we can do things with the values as they are emitted.
  */
-const two: Effect.Effect<void, never, never> = Effect.gen(function* (_) {
-  yield* _(
+const two: Effect.Effect<void, never, never> = Effect.gen(function* () {
+  yield* pipe(
     spacedInts,
     Stream.tap((n: number) => Console.log("`two` emitting:", n)),
     Stream.runDrain // Runs the stream only for its effects. The emitted elements are discarded.

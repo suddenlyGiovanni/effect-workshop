@@ -115,19 +115,15 @@ const FeatureFlagsLive = Layer.effect(
 // ConfigFileLive: Layer<ConfigFile, Error>
 const ConfigFileLive = Layer.effect(
   ConfigFile,
-  Effect.gen(function* (_) {
-    const contents = yield* _(
-      Effect.tryPromise({
-        try: () => fs.readFile("config.json", "utf-8"),
-        catch: (e) => new Error("Could not read config file"),
-      })
-    );
-    const parsed = yield* _(
-      Effect.try({
-        try: () => JSON.parse(contents),
-        catch: (e) => new Error("Could not parse config file"),
-      })
-    );
+  Effect.gen(function* () {
+    const contents = yield* Effect.tryPromise({
+      try: () => fs.readFile("config.json", "utf-8"),
+      catch: (e) => new Error("Could not read config file"),
+    });
+    const parsed = yield* Effect.try({
+      try: () => JSON.parse(contents),
+      catch: (e) => new Error("Could not parse config file"),
+    });
 
     return {
       contents: parsed,
@@ -167,8 +163,8 @@ class Foo extends Context.Tag("Foo")<Foo, { readonly foo: string }>() {
 }
 
 {
-  const program = Effect.gen(function* (_) {
-    const foo = yield* _(Foo);
+  const program = Effect.gen(function* () {
+    const foo = yield* Foo;
     return foo.foo;
   });
 

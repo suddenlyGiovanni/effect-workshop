@@ -161,7 +161,7 @@ Effect.runFork(Scope.close(scope, Exit.void));
  */
 
 {
-  const program = Effect.gen(function* (_) {
+  const program = Effect.gen(function* () {
     const annotation: FiberRef.FiberRef<string | null> = yield* FiberRef.make<
       string | null
     >(null);
@@ -172,7 +172,7 @@ Effect.runFork(Scope.close(scope, Exit.void));
         console.log(`${currentAnnotation ?? ""} - ${message}`);
       });
 
-    const fiber1: Fiber.RuntimeFiber<void, never> = yield* _(
+    const fiber1: Fiber.RuntimeFiber<void, never> = yield* pipe(
       Effect.gen(function* () {
         yield* FiberRef.set(annotation, "fiber1");
         yield* log("hello from fiber1");
@@ -180,7 +180,7 @@ Effect.runFork(Scope.close(scope, Exit.void));
       Effect.fork
     );
 
-    const fiber2: Fiber.RuntimeFiber<void, never> = yield* _(
+    const fiber2: Fiber.RuntimeFiber<void, never> = yield* pipe(
       Effect.gen(function* () {
         yield* FiberRef.set(annotation, "fiber2");
         yield* log("hello from fiber2");

@@ -22,7 +22,7 @@ import {
 
 import * as M from "./model.ts";
 
-const main = Effect.gen(function* (_) {
+const main = Effect.gen(function* () {
   const options = yield* M.CLIOptions;
 
   const client: HttpClient.HttpClient = yield* HttpClient.HttpClient;

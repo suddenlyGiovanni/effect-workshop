@@ -14,16 +14,16 @@ Using `Effect.acquireRelease` we can create a resource with a finalizer attached
 ### Exercise 2
 
 ```ts
-const test2 = Effect.gen(function* (_) {
-  const scope1 = yield* _(Scope.make());
-  const scope2 = yield* _(Scope.make());
+const test2 = Effect.gen(function* () {
+  const scope1 = yield* Scope.make();
+  const scope2 = yield* Scope.make();
 
-  const file1 = yield* _(file(1), Scope.extend(scope1));
-  const file2 = yield* _(file(2), Scope.extend(scope2));
+  const file1 = yield* pipe(file(1), Scope.extend(scope1));
+  const file2 = yield* pipe(file(2), Scope.extend(scope2));
 
-  yield* _(Scope.close(scope1, Exit.unit));
-  yield* _(T.logTest("hi!"));
-  yield* _(Scope.close(scope2, Exit.unit));
+  yield* pipe(Scope.close(scope1, Exit.unit));
+  yield* T.logTest("hi!");
+  yield* Scope.close(scope2, Exit.unit);
 });
 ```
 
@@ -34,8 +34,8 @@ const test2 = Effect.gen(function* (_) {
 ### Exercise 1
 
 ```ts
-const test1 = Effect.gen(function* (_) {
-  const context = yield* _(Effect.context<Foo>());
+const test1 = Effect.gen(function* () {
+  const context = yield* Effect.context<Foo>();
   const foo = Context.get(context, Foo);
   return foo.bar;
 });
@@ -311,7 +311,7 @@ const scopedFile = Effect.acquireRelease(
 );
 
 const testOne = Stream.asyncScoped<string, FileStreamError>((emit) =>
-  Effect.gen(function* (_) {
+  Effect.gen(function* () {
     const fileStream = yield* _(scopedFile);
     fileStream.on("data", (chunk) =>
       emit(Effect.succeed(Chunk.of(chunk.toString())))

@@ -232,7 +232,7 @@ export const Live: Layer.Layer<
           timestamp: Date.now(),
         };
 
-        // yield* _(Queue.offer(pubsub, message));
+        // yield* Queue.offer(pubsub, message);
 
         /**
          * just to one client

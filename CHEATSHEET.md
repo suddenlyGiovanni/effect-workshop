@@ -104,14 +104,14 @@ Effect.succeed(5).pipe(
 
 ### With `Effect.gen`
 
-`Effect.gen` is an alternate way to compose `Effect`s that is similar to async/await. Just map `Promise` -> `Effect` and `await` to `yield* _()`
+`Effect.gen` is an alternate way to compose `Effect`s that is similar to async/await. Just map `Promise` -> `Effect` and `await` to `yield*`
 Inside generators you can easily bind results to variables and use if statements and for/while loops
 
 ```ts
-Effect.gen(function* (_) {
-  const x = yield* _(Effect.succeed(5));
+Effect.gen(function* () {
+  const x = yield* Effect.succeed(5);
   if (x === 0) {
-    yield* _(Effect.fail("nope"));
+    yield* Effect.fail("nope");
   } else {
     console.log(10 / x);
   }
@@ -152,8 +152,8 @@ class Foo extends Context.Tag("Foo")<Foo, { bar: string }>() {}
 
 ```ts
 // main: Effect<void, never, Foo>
-const main = Effect.gen(function* (_) {
-  const foo = yield* _(Foo);
+const main = Effect.gen(function* () {
+  const foo = yield* Foo;
   console.log(foo.bar);
 });
 ```

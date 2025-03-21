@@ -36,7 +36,7 @@ import { Console, Effect, STM, TRef, pipe } from "effect";
  * the same operations on a TRef return an STM
  */
 
-const program = Effect.gen(function* (_) {
+const program = Effect.gen(function* () {
   const ref: TRef.TRef<number> = yield* TRef.make(0);
 
   const transaction: STM.STM<void, never, never> = pipe(
@@ -80,7 +80,7 @@ const transfer = (
   to: Account,
   amount: number
 ): STM.STM<void, InsufficientFundsError> =>
-  STM.gen(function* (_) {
+  STM.gen(function* () {
     const fromBalance: number = yield* TRef.get(from.balance);
     const toBalance: number = yield* TRef.get(to.balance);
 
@@ -96,7 +96,7 @@ const transfer = (
     yield* TRef.set(to.balance, toBalance + amount);
   });
 
-const main = Effect.gen(function* (_) {
+const main = Effect.gen(function* () {
   const account1 = yield* createAccount(1, 1000);
   const account2 = yield* createAccount(2, 500);
   const account3 = yield* createAccount(3, 200);
@@ -130,7 +130,7 @@ const main = Effect.gen(function* (_) {
     transfer(account1, account3, 400), // this won't go through because the first one will fail
   ]);
 
-  yield* _(
+  yield* pipe(
     STM.commit(badTransaction),
     Effect.catchAll((error) => Console.error(error._tag))
   );
@@ -155,7 +155,7 @@ const main = Effect.gen(function* (_) {
  * We want to apply the process, but at no point can the account go under the minimum balance.
  */
 
-const example = Effect.gen(function* (_) {
+const example = Effect.gen(function* () {
   const account1 = yield* createAccount(1, 1000);
   const account2 = yield* createAccount(2, 500);
   const account3 = yield* createAccount(3, 200);
@@ -176,7 +176,7 @@ const example = Effect.gen(function* (_) {
     }
   });
 
-  yield* _(
+  yield* pipe(
     STM.commit(ensuringMinimumBalance),
     Effect.catchAll((error) => Console.error(error._tag))
   );
@@ -211,7 +211,7 @@ const example = Effect.gen(function* (_) {
  * because it can be sure that those previous states have not been modified
  */
 
-const mutabilityBad = Effect.gen(function* (_) {
+const mutabilityBad = Effect.gen(function* () {
   const ref: TRef.TRef<Date> = yield* TRef.make(new Date());
 
   const transaction = pipe(
@@ -224,7 +224,7 @@ const mutabilityBad = Effect.gen(function* (_) {
   );
 
   const before: Date = yield* STM.commit(TRef.get(ref));
-  yield* _(
+  yield* pipe(
     STM.commit(transaction),
     Effect.catchAll((error) => Console.error(error.message))
   );

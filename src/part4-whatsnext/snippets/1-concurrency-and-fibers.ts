@@ -25,9 +25,9 @@ const normalJS = () => {
 /**
  * why doesnt the log show up?
  */
-const effect = Effect.gen(function* (_) {
+const effect = Effect.gen(function* () {
   let i = 0;
-  yield* _(
+  yield* pipe(
     Effect.suspend(() => Console.log("i", i)),
     Effect.repeat(Schedule.spaced(250)),
     Effect.fork
@@ -169,7 +169,7 @@ const fiber2 = Effect.gen(function* () {
 /**
  * If we don't care about the full exit value, we can use `Fiber.join` to just get the result as an effect
  */
-const fiber3 = Effect.gen(function* (_) {
+const fiber3 = Effect.gen(function* () {
   const fiber: Fiber.RuntimeFiber<number, never> = yield* Effect.fork(
     Effect.succeed(1)
   );
@@ -185,9 +185,9 @@ const fiber3 = Effect.gen(function* (_) {
 /**
  * So now, let's explain the first example again:
  */
-const fiber4 = Effect.gen(function* (_) {
+const fiber4 = Effect.gen(function* () {
   let i = 0;
-  yield* _(
+  yield* pipe(
     Effect.suspend(() => Console.log("i", i)),
     Effect.repeat(Schedule.spaced(250)),
     Effect.fork
@@ -216,9 +216,9 @@ export default fiber4;
  * then that fiber yields because of its schedule, and the runtime goes back to the incrementing fiber
  */
 
-const fiber5 = Effect.gen(function* (_) {
+const fiber5 = Effect.gen(function* () {
   let i = 0;
-  yield* _(
+  yield* pipe(
     Effect.suspend(() => Console.log("i", i)),
     Effect.repeat(Schedule.spaced(250)),
     Effect.fork
@@ -361,11 +361,11 @@ const runExample = () => {
  * it only has two states, `unresolved` and `resolved` (with a value or an error)
  */
 
-const fiber7 = Effect.gen(function* (_) {
+const fiber7 = Effect.gen(function* () {
   const deferred: Deferred.Deferred<number, never> =
     yield* Deferred.make<number>();
 
-  const fiber: Fiber.RuntimeFiber<boolean, never> = yield* _(
+  const fiber: Fiber.RuntimeFiber<boolean, never> = yield* pipe(
     Deferred.succeed(deferred, 42),
     Effect.fork
   );
@@ -383,10 +383,10 @@ const fiber7 = Effect.gen(function* (_) {
  * Next is `Queue` which is your standard channel but with customizable backpressure behavior
  */
 
-const fiber8 = Effect.gen(function* (_) {
+const fiber8 = Effect.gen(function* () {
   const queue: Queue.Queue<number> = yield* Queue.unbounded<number>();
 
-  const fiber: Fiber.RuntimeFiber<void, never> = yield* _(
+  const fiber: Fiber.RuntimeFiber<void, never> = yield* pipe(
     Queue.take(queue),
     Effect.flatMap((n) => Console.log("recvied", n)),
     Effect.repeat({ times: 2 }),
@@ -413,8 +413,8 @@ const fiber8 = Effect.gen(function* (_) {
  * Consider this example:
  */
 
-const fiber9 = Effect.gen(function* (_) {
-  yield* _(Console.log("fork!"), Effect.fork);
+const fiber9 = Effect.gen(function* () {
+  yield* pipe(Console.log("fork!"), Effect.fork);
   yield* Console.log("main!");
 });
 
@@ -438,8 +438,8 @@ const fiber9 = Effect.gen(function* (_) {
  * To manually yield control to the runtime, you can use `Effect.yieldNow()`
  */
 
-const fiber10 = Effect.gen(function* (_) {
-  yield* _(Console.log("fork!"), Effect.fork);
+const fiber10 = Effect.gen(function* () {
+  yield* pipe(Console.log("fork!"), Effect.fork);
   yield* Effect.yieldNow();
   yield* Console.log("main!");
 });
