@@ -12,6 +12,7 @@
   "dependencies": {
     "@effect/cli": "latest",
     "@effect/experimental": "latest",
+    "@effect/language-service": "latest",
     "@effect/opentelemetry": "latest",
     "@effect/platform": "latest",
     "@effect/platform-browser": "latest",

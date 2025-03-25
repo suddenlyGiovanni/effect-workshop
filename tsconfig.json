@@ -21,6 +21,8 @@
 
     /* other */
     "exactOptionalPropertyTypes": true,
-    "noUncheckedIndexedAccess": true
+    "noUncheckedIndexedAccess": true,
+
+    "plugins": [{ "name": "@effect/language-service" }]
   }
 }
