@@ -69,7 +69,7 @@ namespace RequirementsExample {
   type Effect<
     Value,
     Error = never,
-    Requirement = never
+    Requirement = never,
   > = /* unimportant */ undefined;
 
   declare const getUser: Effect<User, NotFoundError, DataBase>;

@@ -1,7 +1,8 @@
+import * as fs from "node:fs/promises";
 import { Console, Effect, Layer, Option, pipe } from "effect";
 import meow from "meow";
-import * as M from "./model";
-import * as fs from "node:fs/promises";
+
+import * as M from "./model.ts";
 
 const parseCliOptions = () =>
   meow(
@@ -50,64 +51,36 @@ const parseCliOptions = () =>
     }
   );
 
-const CliOptionsLive = Layer.effect(
-  M.CLIOptions,
-  Effect.gen(function* (_) {
-    const cli = yield* _(
-      Effect.try({
-        try: () => parseCliOptions(),
-        catch: (error) => new M.CliOptionsParseError({ error }),
-      })
-    );
+const main = Effect.gen(function* () {
+  const options = yield* M.CLIOptions;
 
-    const arg = yield* _(
-      Option.fromNullable(cli.input[0]),
-      Effect.mapError(
-        () => new M.CliOptionsParseError({ error: "No url provided" })
-      )
-    );
-
-    return {
-      url: arg,
-      ...cli.flags,
-    };
-  })
-);
-
-const main = Effect.gen(function* (_) {
-  const options = yield* _(M.CLIOptions);
-
-  const headers = options?.headers
-    ? yield* _(
-        Effect.reduce(
-          options.headers,
-          new Array<[string, string]>(),
-          (acc, header) => {
-            const [key, value] = header.split(":");
-            if (!key || !value) {
-              return Effect.fail(new M.HeaderParseError());
-            }
-            acc.push([key, value]);
-            return Effect.succeed(acc);
+  const headers: [key: string, value: string][] = options?.headers //
+    ? yield* Effect.reduce(
+        options.headers,
+        new Array<[string, string]>(),
+        (acc, header) => {
+          const [key, value] = header.split(":");
+          if (!key || !value) {
+            return Effect.fail(new M.HeaderParseError());
           }
-        )
-      )
+          acc.push([key, value]);
+          return Effect.succeed(acc);
+        }
+      ) //
     : [];
 
-  const providedFetch = yield* _(M.Fetch);
+  const providedFetch = yield* M.Fetch;
 
-  const res = yield* _(
-    Effect.tryPromise({
-      try: (signal) =>
-        providedFetch(options.url, {
-          ...(options?.method && { method: options.method }),
-          ...(options?.data && { body: options.data }),
-          headers,
-          signal,
-        }),
-      catch: (error) => new M.UnknownError({ error }),
-    })
-  );
+  const res: Response = yield* Effect.tryPromise({
+    try: (signal) =>
+      providedFetch(options.url, {
+        ...(options?.method && { method: options.method }),
+        ...(options?.data && { body: options.data }),
+        headers,
+        signal,
+      }),
+    catch: (error) => new M.UnknownError({ error }),
+  });
 
   const buffer: string[] = [];
 
@@ -120,23 +93,41 @@ const main = Effect.gen(function* (_) {
     buffer.push("");
   }
 
-  const text = yield* _(
-    Effect.tryPromise({
-      try: () => res.text(),
-      catch: () => new M.TextDecodeError(),
-    })
-  );
+  const text = yield* Effect.tryPromise({
+    try: () => res.text(),
+    catch: () => new M.TextDecodeError(),
+  });
   buffer.push(text);
 
   const finalString = buffer.join("\n");
-  yield* _(
-    Effect.match(Option.fromNullable(options.output), {
-      onSuccess: (output) =>
-        Effect.promise(() => fs.writeFile(output, finalString)),
-      onFailure: () => Console.log(finalString),
-    })
-  );
+  yield* Effect.match(Option.fromNullable(options.output), {
+    onSuccess: (output) =>
+      Effect.promise(() => fs.writeFile(output, finalString)),
+    onFailure: () => Console.log(finalString),
+  });
 });
+
+const CliOptionsLive = Layer.effect(
+  M.CLIOptions,
+  Effect.gen(function* () {
+    const cli = yield* Effect.try({
+      try: () => parseCliOptions(),
+      catch: (error) => new M.CliOptionsParseError({ error }),
+    });
+
+    const arg = yield* pipe(
+      Option.fromNullable(cli.input[0]),
+      Effect.mapError(
+        () => new M.CliOptionsParseError({ error: "No url provided" })
+      )
+    );
+
+    return {
+      url: arg,
+      ...cli.flags,
+    };
+  })
+);
 
 await pipe(
   main,

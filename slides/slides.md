@@ -716,16 +716,16 @@ Why doesn't this work?
 ---
 
 ```ts
-const effect = Effect.gen(function* (_) {
+const effect = Effect.gen(function* () {
   let i = 0;
-  yield* _(
+  yield* pipe(
     Effect.suspend(() => Console.log("i", i)),
     Effect.repeat(Schedule.spaced(250)),
     Effect.fork
   );
 
   while (true) {
-    yield* _(Effect.sync(() => i++));
+    yield* Effect.sync(() => i++);
   }
 });
 ```
@@ -800,9 +800,9 @@ layout: center
 ---
 
 ```ts
-const program = Effect.gen(function* (_) {
+const program = Effect.gen(function* () {
   let i = 0;
-  yield* _(
+  yield* pipe(
     Effect.suspend(() => Console.log("i", i)),
     Effect.repeat(Schedule.spaced(250)),
     Effect.fork

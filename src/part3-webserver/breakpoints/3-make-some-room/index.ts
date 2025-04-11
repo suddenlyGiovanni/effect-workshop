@@ -1,10 +1,15 @@
-import { Layer, pipe } from "effect";
 import { BunRuntime } from "@effect/platform-bun";
-import * as HTTP from "./http";
-import * as WS from "./ws";
-import * as SERVER from "./shared";
+import { Layer, pipe } from "effect";
 
-const serversLayer = Layer.merge(HTTP.Live, WS.Live);
+import * as HTTP from "./http.ts";
+import * as SERVER from "./shared.ts";
+import * as WS from "./ws.ts";
+
+const serversLayer: Layer.Layer<
+  never,
+  never,
+  SERVER.HttpServer | SERVER.CurrentConnections | SERVER.WSSServer
+> = Layer.merge(HTTP.Live, WS.Live);
 
 pipe(
   Layer.merge(serversLayer, SERVER.ListenLive),

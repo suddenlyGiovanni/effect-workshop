@@ -1,6 +1,6 @@
+import * as fs from "node:fs/promises";
 import { Console, Effect, Option } from "effect";
 import meow from "meow";
-import * as fs from "node:fs/promises";
 
 const cli = meow(
   `
@@ -71,7 +71,7 @@ interface CLIOptions {
 }
 
 function main(url: string, options?: CLIOptions) {
-  return Effect.gen(function* (_) {
+  return Effect.gen(function* () {
     const headers = options?.headers?.reduce((acc, header) => {
       const [key, value] = header.split(":");
       if (!key || !value) {
@@ -81,15 +81,13 @@ function main(url: string, options?: CLIOptions) {
       return acc;
     }, new Array<[string, string]>());
 
-    const res = yield* _(
-      Effect.tryPromise((signal) =>
-        fetch(url, {
-          ...(options?.method && { method: options.method }),
-          ...(options?.data && { body: options.data }),
-          ...(headers && { headers }),
-          signal,
-        })
-      )
+    const res = yield* Effect.tryPromise((signal) =>
+      fetch(url, {
+        ...(options?.method && { method: options.method }),
+        ...(options?.data && { body: options.data }),
+        ...(headers && { headers }),
+        signal,
+      })
     );
 
     const buffer: string[] = [];
@@ -103,16 +101,14 @@ function main(url: string, options?: CLIOptions) {
       buffer.push("");
     }
 
-    const text = yield* _(Effect.tryPromise(() => res.text()));
+    const text = yield* Effect.tryPromise(() => res.text());
     buffer.push(text);
 
     const finalString = buffer.join("\n");
-    yield* _(
-      Effect.matchEffect(Option.fromNullable(options?.output), {
-        onSuccess: (output) =>
-          Effect.tryPromise(() => fs.writeFile(output, finalString)),
-        onFailure: () => Console.log(finalString),
-      })
-    );
+    yield* Effect.matchEffect(Option.fromNullable(options?.output), {
+      onSuccess: (output) =>
+        Effect.tryPromise(() => fs.writeFile(output, finalString)),
+      onFailure: () => Console.log(finalString),
+    });
   });
 }

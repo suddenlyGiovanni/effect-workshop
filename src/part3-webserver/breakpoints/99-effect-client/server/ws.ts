@@ -1,74 +1,77 @@
-import { WebSocketServer } from "ws";
-import { NodeServer } from "./node";
 import {
+  Chunk,
+  Console,
   Context,
   Effect,
+  Either,
   HashMap,
   Layer,
-  PubSub,
-  Stream,
-  Ref,
-  Chunk,
-  pipe,
-  Either,
   Option,
-  Console,
-  Schedule,
+  PubSub,
   Queue,
+  Ref,
+  Schedule,
+  Schema,
+  Stream,
+  pipe,
 } from "effect";
-import WebSocket from "ws";
-import * as M from "./model";
-import { ConnectionStore, getAvailableColors } from "./shared";
-import * as S from "@effect/schema/Schema";
+import { type WebSocket, WebSocketServer } from "ws";
 
-class MessagePubSub extends Context.Tag("MessagePubSub")<
+import * as M from "./model.ts";
+import { NodeServer } from "./node.ts";
+import { ConnectionStore, getAvailableColors } from "./shared.ts";
+
+export class MessagePubSub extends Context.Tag("MessagePubSub")<
   MessagePubSub,
   M.MessagePubSub
->() {}
-export const MessagePubSubLive = Layer.effect(
-  MessagePubSub,
-  PubSub.unbounded<M.ServerOutgoingMessage>()
-);
+>() {
+  public static readonly Live: Layer.Layer<MessagePubSub, never, never> =
+    Layer.effect(MessagePubSub, PubSub.unbounded<M.ServerOutgoingMessage>());
+}
 
-function registerConnection(ws: WebSocket) {
-  return Effect.gen(function* (_) {
-    const setupInfo = yield* _(
-      Effect.async<M.StartupMessage, M.BadStartupMessageError, ConnectionStore>(
-        (emit) => {
-          ws.once("message", (message) => {
-            pipe(
-              message.toString(),
-              S.decodeUnknown(M.StartupMessageFromJSON),
-              Effect.mapError(
-                (parseError) =>
-                  new M.BadStartupMessageError({
-                    error: { _tag: "parseError", parseError },
-                  })
-              ),
-              Effect.flatMap((message) =>
-                Effect.gen(function* (_) {
-                  const availableColors = yield* _(getAvailableColors);
-                  if (!availableColors.includes(message.color)) {
-                    yield* _(
-                      new M.BadStartupMessageError({
-                        error: {
-                          _tag: "colorAlreadyTaken",
-                          color: message.color,
-                        },
-                      })
-                    );
-                  }
-                  return message;
-                })
-              ),
-              emit
-            );
-          });
-        }
-      )
-    );
+function registerConnection(
+  ws: WebSocket
+): Effect.Effect<void, never, MessagePubSub | ConnectionStore> {
+  return Effect.gen(function* () {
+    const setupInfo = yield* Effect.async<
+      M.StartupMessage,
+      M.BadStartupMessageError,
+      ConnectionStore
+    >((emit) => {
+      ws.once("message", (message) =>
+        pipe(
+          message.toString(),
 
-    yield* _(Effect.logDebug(`New connection from ${setupInfo.name}`));
+          Schema.decodeUnknown(M.StartupMessageFromJSON),
+
+          Effect.mapError(
+            (parseError) =>
+              new M.BadStartupMessageError({
+                error: { _tag: "parseError", parseError },
+              })
+          ),
+
+          Effect.flatMap((message) =>
+            Effect.gen(function* () {
+              const availableColors = yield* getAvailableColors;
+              if (!availableColors.includes(message.color)) {
+                yield* new M.BadStartupMessageError({
+                  error: {
+                    _tag: "colorAlreadyTaken",
+                    color: message.color,
+                  },
+                });
+              }
+              return message;
+            })
+          ),
+
+          emit
+        )
+      );
+    });
+
+    yield* Effect.logDebug(`New connection from ${setupInfo.name}`);
 
     const messagesStream = Stream.async<
       M.ServerIncomingMessage,
@@ -76,9 +79,12 @@ function registerConnection(ws: WebSocket) {
     >((emit) => {
       ws.on("message", (message) => {
         const messageString = message.toString();
+
         pipe(
           messageString,
-          S.decodeUnknown(M.ServerIncomingMessageFromJSON),
+
+          Schema.decodeUnknown(M.ServerIncomingMessageFromJSON),
+
           Effect.mapError(
             (parseError) =>
               new M.UnknownIncomingMessageError({
@@ -86,117 +92,127 @@ function registerConnection(ws: WebSocket) {
                 rawMessage: messageString,
               })
           ),
+
           Effect.mapBoth({
             onSuccess: (message) => Chunk.make(message),
             onFailure: (error) => Option.some(error),
           }),
+
           emit
         );
       });
-      ws.on("error", (error) => {
-        emit(Effect.fail(Option.some(new M.WebSocketError({ error }))));
-      });
-      ws.on("close", () => {
-        emit(Effect.fail(Option.none()));
-      });
+
+      ws.on("error", (error) =>
+        emit(Effect.fail(Option.some(new M.WebSocketError({ error }))))
+      );
+
+      ws.on("close", () => emit(Effect.fail(Option.none())));
     }).pipe(
       Stream.tap((message) =>
         Effect.logDebug(`FROM: ${setupInfo.name}: ${JSON.stringify(message)}`)
       ),
+
       Stream.onError((error) =>
         Effect.logError(`FROM: ${setupInfo.name}: ${JSON.stringify(error)}`)
       ),
+
       Stream.either,
+
       Stream.filter(Either.isRight),
+
       Stream.map((either) => either.right)
     );
 
-    const sendQueue = yield* _(Queue.unbounded<M.ServerOutgoingMessage>());
+    const sendQueue = yield* Queue.unbounded<M.ServerOutgoingMessage>();
 
-    const { sendFiber, receiveFiber } = yield* _(
-      Effect.gen(function* (_) {
-        const messagePubSub = yield* _(MessagePubSub);
+    const { sendFiber, receiveFiber } = yield* Effect.gen(function* () {
+      const messagePubSub = yield* MessagePubSub;
 
-        // this fiber finishes when the connection is closed and the stream ends
-        const receiveFiber = yield* _(
-          messagesStream,
-          Stream.tap((message) =>
-            PubSub.publish(messagePubSub, {
-              _tag: "message",
-              name: setupInfo.name,
-              color: setupInfo.color,
-              message: message.message,
-              timestamp: Date.now(),
-            })
-          ),
-          Stream.ensuring(
-            Effect.zip(
-              PubSub.publish(messagePubSub, {
-                _tag: "leave",
-                name: setupInfo.name,
-                color: setupInfo.color,
-              }),
-              Effect.gen(function* (_) {
-                const connectionStore = yield* _(ConnectionStore);
-                yield* _(
-                  Ref.update(connectionStore, (store) =>
-                    HashMap.remove(store, setupInfo.name)
-                  )
-                );
-              })
-            )
-          ),
-          Stream.runDrain,
-          Effect.fork
-        );
+      // this fiber finishes when the connection is closed and the stream ends
+      const receiveFiber = yield* pipe(
+        messagesStream,
 
-        // this fiber finishes when the connection is closed and the stream ends
-        const sendFiber = yield* _(
-          Stream.fromPubSub(messagePubSub),
-          Stream.tap((message) =>
-            Effect.logDebug(`TO: ${setupInfo.name}: ${JSON.stringify(message)}`)
-          ),
-          Stream.tap((message) =>
-            pipe(
-              S.encode(M.ServerOutgoingMessageFromJSON)(message),
-              Effect.flatMap((messageString) =>
-                Effect.sync(() => ws.send(messageString))
-              )
-            )
-          ),
-          Stream.catchAll((error) => Effect.logError(error)),
-          Stream.runDrain,
-          Effect.zipLeft(
-            pipe(
-              Queue.take(sendQueue),
-              Effect.flatMap((message) =>
-                S.encode(M.ServerOutgoingMessageFromJSON)(message)
-              ),
-              Effect.flatMap((messageString) =>
-                Effect.sync(() => ws.send(messageString))
-              ),
-              Effect.catchAll((error) => Effect.logError(error)),
-              Effect.forever
-            ),
-            { concurrent: true }
-          ),
-          Effect.fork
-        );
-
-        // so other fibers can run
-        yield* _(Effect.yieldNow());
-
-        yield* _(
+        Stream.tap((message) =>
           PubSub.publish(messagePubSub, {
-            _tag: "join",
+            _tag: "message",
             name: setupInfo.name,
             color: setupInfo.color,
+            message: message.message,
+            timestamp: Date.now(),
           })
-        );
+        ),
 
-        return { sendFiber, receiveFiber };
-      })
-    );
+        Stream.ensuring(
+          Effect.zip(
+            PubSub.publish(messagePubSub, {
+              _tag: "leave",
+              name: setupInfo.name,
+              color: setupInfo.color,
+            }),
+            Effect.gen(function* () {
+              const connectionStore = yield* ConnectionStore;
+              yield* Ref.update(connectionStore, (store) =>
+                HashMap.remove(store, setupInfo.name)
+              );
+            })
+          )
+        ),
+
+        Stream.runDrain,
+
+        Effect.fork
+      );
+
+      // this fiber finishes when the connection is closed and the stream ends
+      const sendFiber = yield* pipe(
+        Stream.fromPubSub(messagePubSub),
+
+        Stream.tap((message) =>
+          Effect.logDebug(`TO: ${setupInfo.name}: ${JSON.stringify(message)}`)
+        ),
+
+        Stream.tap((message) =>
+          pipe(
+            Schema.encode(M.ServerOutgoingMessageFromJSON)(message),
+            Effect.flatMap((messageString) =>
+              Effect.sync(() => ws.send(messageString))
+            )
+          )
+        ),
+
+        Stream.catchAll((error) => Effect.logError(error)),
+
+        Stream.runDrain,
+
+        Effect.zipLeft(
+          pipe(
+            Queue.take(sendQueue),
+            Effect.flatMap((message) =>
+              Schema.encode(M.ServerOutgoingMessageFromJSON)(message)
+            ),
+            Effect.flatMap((messageString) =>
+              Effect.sync(() => ws.send(messageString))
+            ),
+            Effect.catchAll((error) => Effect.logError(error)),
+            Effect.forever
+          ),
+          { concurrent: true }
+        ),
+
+        Effect.fork
+      );
+
+      // so other fibers can run
+      yield* Effect.yieldNow();
+
+      yield* PubSub.publish(messagePubSub, {
+        _tag: "join",
+        name: setupInfo.name,
+        color: setupInfo.color,
+      });
+
+      return { sendFiber, receiveFiber };
+    });
 
     const close = Effect.sync(() => ws.close());
 
@@ -212,11 +228,10 @@ function registerConnection(ws: WebSocket) {
       close,
     };
 
-    const connectionStore = yield* _(ConnectionStore);
-    yield* _(
-      Ref.update(connectionStore, (store) =>
-        HashMap.set(store, setupInfo.name, connection)
-      )
+    const connectionStore = yield* ConnectionStore;
+
+    yield* Ref.update(connectionStore, (store) =>
+      HashMap.set(store, setupInfo.name, connection)
     );
   }).pipe(Effect.catchAll((error) => Console.error(error)));
 }
@@ -224,57 +239,77 @@ function registerConnection(ws: WebSocket) {
 export class WSSServer extends Context.Tag("WSSServer")<
   WSSServer,
   WebSocketServer
->() {}
-export const WSSServerLive = Layer.effect(
-  WSSServer,
-  NodeServer.pipe(Effect.map((server) => new WebSocketServer({ server })))
-);
+>() {
+  public static readonly Live: Layer.Layer<WSSServer, never, NodeServer> =
+    Layer.effect(
+      WSSServer,
+      NodeServer.pipe(Effect.map((server) => new WebSocketServer({ server })))
+    );
+}
 
-export const WebSocketLive = Layer.effectDiscard(
-  Effect.gen(function* (_) {
-    const wss = yield* _(WSSServer);
+export const WebSocketLive: Layer.Layer<
+  never,
+  never,
+  ConnectionStore | WSSServer
+> = Layer.effectDiscard(
+  Effect.gen(function* () {
+    const wss = yield* WSSServer;
+
     const connectionStream = Stream.async<WebSocket>((emit) => {
-      wss.on("connection", (ws) => {
-        emit(Effect.succeed(Chunk.make(ws)));
-      });
+      wss.on("connection", (ws) => emit(Effect.succeed(Chunk.make(ws))));
     });
 
-    // This fiber lives for the duration of the program
-    yield* _(
+    /**
+     * This fiber lives for the duration of the program
+     */
+    yield* pipe(
       connectionStream,
+
       Stream.tap((ws) => registerConnection(ws)),
+
       Stream.runDrain,
+
       Effect.forkDaemon
     );
 
-    // This fiber lives for the duration of the program
-    const pubsub = yield* _(MessagePubSub);
-    yield* _(
+    /**
+     * This fiber lives for the duration of the program
+     */
+    const pubsub = yield* MessagePubSub;
+
+    yield* pipe(
       Stream.fromPubSub(pubsub),
+
       Stream.tap((message) =>
         Console.info(`BROADCASTING: ${JSON.stringify(message)}`)
       ),
+
       Stream.runDrain,
+
       Effect.forkDaemon
     );
 
-    // This fiber lives for the duration of the program
-    yield* _(
-      Effect.gen(function* (_) {
-        const connectionStore = yield* _(ConnectionStore);
-        const connections = yield* _(Ref.get(connectionStore));
-        yield* _(
-          Console.log(`Current Connections: ${HashMap.size(connections)}`)
-        );
+    /**
+     * This fiber lives for the duration of the program
+     */
+    yield* pipe(
+      Effect.gen(function* () {
+        const connectionStore = yield* ConnectionStore;
+
+        const connections = yield* Ref.get(connectionStore);
+
+        yield* Console.log(`Current Connections: ${HashMap.size(connections)}`);
+
         for (const connection of HashMap.values(connections)) {
-          const message = `${connection.name} connected for ${
-            Date.now() - connection.timeConnected
-          }ms`;
-          yield* _(Console.log(message));
+          yield* Console.log(
+            `${connection.name} connected for ${Date.now() - connection.timeConnected}ms`
+          );
         }
       }),
+
       Effect.repeat(Schedule.spaced("1 seconds")),
+
       Effect.forkDaemon
     );
   })
-).pipe(Layer.provide(MessagePubSubLive));
+).pipe(Layer.provide(MessagePubSub.Live));

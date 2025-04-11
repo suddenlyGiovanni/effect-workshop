@@ -1,8 +1,8 @@
-import { createServer } from "http";
-import { Config, Context, Effect, Layer } from "effect";
-import * as M from "./model";
-import * as C from "./config";
+import { createServer } from "node:http";
+import { Context, Effect, Layer } from "effect";
 import { WebSocketServer } from "ws";
+
+import * as M from "./model.ts";
 
 export class HttpServer extends Context.Tag("HttpServer")<
   HttpServer,
@@ -28,13 +28,20 @@ export class CurrentConnections extends Context.Tag("CurrentConnections")<
   static readonly Live = Layer.sync(CurrentConnections, () => new Map());
 }
 
-export const getAvailableColors = Effect.gen(function* (_) {
-  const currentConnections = yield* _(CurrentConnections);
+export const getAvailableColors: Effect.Effect<
+  M.Color[],
+  never,
+  CurrentConnections
+> = Effect.gen(function* () {
+  const currentConnections = yield* CurrentConnections;
+
   const currentColors = Array.from(currentConnections.values()).map(
     (conn) => conn.color
   );
+
   const availableColors = M.colors.filter(
     (color) => !currentColors.includes(color)
   );
+
   return availableColors;
 });

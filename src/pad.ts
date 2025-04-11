@@ -1,8 +1,8 @@
 import { Console, Effect, Layer, Schedule, pipe } from "effect";
 
 const layer1 = Layer.effectDiscard(
-  Effect.gen(function* (_) {
-    yield* _(
+  Effect.gen(function* () {
+    yield* pipe(
       Effect.log("layer 1"),
       Effect.repeat(Schedule.spaced("1 seconds"))
     );
@@ -10,8 +10,8 @@ const layer1 = Layer.effectDiscard(
 );
 
 const layer2 = Layer.effectDiscard(
-  Effect.gen(function* (_) {
-    yield* _(
+  Effect.gen(function* () {
+    yield* pipe(
       Effect.log("layer 2"),
       Effect.repeat(Schedule.spaced("1 seconds"))
     );

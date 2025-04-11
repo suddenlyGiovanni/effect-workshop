@@ -1,8 +1,9 @@
-import { createServer } from "http";
-import { HashMap, Ref, Context, Effect, Layer } from "effect";
-import * as M from "./model";
-import * as C from "./config";
+import { createServer } from "node:http";
+import { type ConfigError, Context, Effect, HashMap, Layer, Ref } from "effect";
 import { WebSocketServer } from "ws";
+
+import * as C from "./config.ts";
+import * as M from "./model.ts";
 
 export class HttpServer extends Context.Tag("HttpServer")<
   HttpServer,
@@ -31,32 +32,45 @@ export class CurrentConnections extends Context.Tag("CurrentConnections")<
   );
 }
 
-export const ListenLive = Layer.effectDiscard(
-  Effect.gen(function* (_) {
-    const port = yield* _(C.PORT);
-    const server = yield* _(HttpServer);
-    const currentConnections = yield* _(CurrentConnections);
-    const connections = yield* _(Ref.get(currentConnections));
-    yield* _(
-      Effect.sync(() =>
-        server.listen(port, () => console.log("Server started on port", port))
-      )
+export const ListenLive: Layer.Layer<
+  never,
+  ConfigError.ConfigError,
+  CurrentConnections | HttpServer
+> = Layer.effectDiscard(
+  Effect.gen(function* () {
+    const port = yield* C.PORT;
+
+    const server = yield* HttpServer;
+
+    const currentConnections = yield* CurrentConnections;
+
+    const connections = yield* Ref.get(currentConnections);
+
+    yield* Effect.sync(() =>
+      server.listen(port, () => console.log("Server started on port", port))
     );
-    yield* _(
-      Effect.sync(() =>
-        setInterval(() => {
-          console.log("Current connections:", HashMap.size(connections));
-        }, 1000)
+
+    yield* Effect.sync(() =>
+      setInterval(
+        () => console.log("Current connections:", HashMap.size(connections)),
+        1000
       )
     );
   })
 );
 
-export const getAvailableColors = Effect.gen(function* (_) {
-  const currentConnections = yield* _(CurrentConnections);
-  const connections = yield* _(Ref.get(currentConnections));
+export const getAvailableColors: Effect.Effect<
+  M.Color[],
+  never,
+  CurrentConnections
+> = Effect.gen(function* () {
+  const currentConnections = yield* CurrentConnections;
+
+  const connections = yield* Ref.get(currentConnections);
+
   const usedColors = Array.from(HashMap.values(connections)).map(
     (_) => _.color
   );
+
   return M.colors.filter((color) => !usedColors.includes(color));
 });

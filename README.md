@@ -11,7 +11,10 @@ Follow me on [Twitter](https://twitter.com/ethanniser) and [YouTube](https://www
 
 ## REQUIREMENTS:
 
-### A way to run typescript Node (with ts-node or tsx) or Bun
+Choose your runtime:
+ - Bun (recommended) 
+ - Node >= 23.6 will allow you to run TypeScript without transpiling
+ - Node < 23.6 with a typescript transpiler (like ts-node or tsx)
 
 https://nodejs.org/en
 
@@ -125,23 +128,23 @@ For quick reference or for review feel free to read [CHEATSHEET.md](./CHEATSHEET
 {
   "Gen Function $": {
     "prefix": "gg",
-    "body": ["function* (_) {\n\t$0\n}"],
-    "description": "Generator function with _ input"
+    "body": ["function* () {\n\t$0\n}"],
+    "description": "Generator function"
   },
   "Gen Function $ (wrapped)": {
     "prefix": "egg",
-    "body": ["Effect.gen(function* (_) {\n\t$0\n})"],
-    "description": "Generator function with _ input"
+    "body": ["Effect.gen(function* () {\n\t$0\n})"],
+    "description": "Effect.gen with Generator function"
   },
   "Gen Yield $": {
     "prefix": "yy",
-    "body": ["yield* _($0)"],
-    "description": "Yield generator calling _()"
+    "body": ["yield* $0"],
+    "description": "Yield generator calling"
   },
   "Gen Yield $ (const)": {
     "prefix": "cyy",
-    "body": ["const $1 = yield* _($0)"],
-    "description": "Yield generator calling _()"
+    "body": ["const $1 = yield* $0"],
+    "description": "Yield generator calling and assign to const"
   }
 }
 ```

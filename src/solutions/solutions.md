@@ -14,16 +14,16 @@ Using `Effect.acquireRelease` we can create a resource with a finalizer attached
 ### Exercise 2
 
 ```ts
-const test2 = Effect.gen(function* (_) {
-  const scope1 = yield* _(Scope.make());
-  const scope2 = yield* _(Scope.make());
+const test2 = Effect.gen(function* () {
+  const scope1 = yield* Scope.make();
+  const scope2 = yield* Scope.make();
 
-  const file1 = yield* _(file(1), Scope.extend(scope1));
-  const file2 = yield* _(file(2), Scope.extend(scope2));
+  const file1 = yield* pipe(file(1), Scope.extend(scope1));
+  const file2 = yield* pipe(file(2), Scope.extend(scope2));
 
-  yield* _(Scope.close(scope1, Exit.unit));
-  yield* _(T.logTest("hi!"));
-  yield* _(Scope.close(scope2, Exit.unit));
+  yield* pipe(Scope.close(scope1, Exit.unit));
+  yield* T.logTest("hi!");
+  yield* Scope.close(scope2, Exit.unit);
 });
 ```
 
@@ -34,8 +34,8 @@ const test2 = Effect.gen(function* (_) {
 ### Exercise 1
 
 ```ts
-const test1 = Effect.gen(function* (_) {
-  const context = yield* _(Effect.context<Foo>());
+const test1 = Effect.gen(function* () {
+  const context = yield* Effect.context<Foo>();
   const foo = Context.get(context, Foo);
   return foo.bar;
 });
@@ -200,6 +200,8 @@ const string2 = ASCIIString("hello🌍");
 
 If we want to avoid the overhead of a object, we can 'brand' a type. Using `Brand.refined` we can create a constructor
 
+___
+
 # Part 2
 
 ## Schema
@@ -257,6 +259,9 @@ Using `transformOrFail` we can create a transformation that could error. `ParseR
 
 Finally, `S.compose` is used to compose two schemas together.
 
+___
+
+
 # Part 3
 
 ## Stream
@@ -278,16 +283,20 @@ The answer is 'B'. `Stream.drop` ignores the first `n` elements of a stream, but
 #### With `Stream.asyncInterrupt`
 
 ```ts
-const testOne = Stream.asyncInterrupt<string, FileStreamError>((emit) => {
-  const fileStream = fs.createReadStream("test.txt");
+const testOne = Stream.async<string, FileStreamError>((emit) => {
+  const fileStream: ReadStream = fs.createReadStream("test.txt");
+
   fileStream.on("data", (chunk) =>
     emit(Effect.succeed(Chunk.of(chunk.toString())))
   );
+
   fileStream.on("error", (error) =>
     emit(Effect.fail(Option.some(new FileStreamError(error))))
   );
+
   fileStream.on("end", () => emit(Effect.fail(Option.none())));
-  return Either.left(Effect.sync(() => fileStream.close()));
+
+  return Effect.sync(() => fileStream.close());
 });
 ```
 
@@ -302,7 +311,7 @@ const scopedFile = Effect.acquireRelease(
 );
 
 const testOne = Stream.asyncScoped<string, FileStreamError>((emit) =>
-  Effect.gen(function* (_) {
+  Effect.gen(function* () {
     const fileStream = yield* _(scopedFile);
     fileStream.on("data", (chunk) =>
       emit(Effect.succeed(Chunk.of(chunk.toString())))
@@ -317,20 +326,18 @@ const testOne = Stream.asyncScoped<string, FileStreamError>((emit) =>
 
 First we create a scoped effect that creates and closes the file stream. Then we use `Stream.asyncScoped` to create the stream, knowing it will close the scope when it's done or interrupted.
 
-### Exercise 2
+### Exercise 3
 
 #### Manual Solution
 
 ```ts
-const testTwo = powersOfTwo.pipe(
-  Stream.mapAccum(null as null | number, (acc, next) => {
-    if (acc === next) {
-      return [acc, Option.none()];
-    } else {
-      return [next, Option.some(next)];
-    }
-  }),
-  Stream.filterMap(identity)
+const testTwo: Stream.Stream<number, never, never> = powersOfTwo.pipe(
+  Stream.mapAccum(null, (acc: null | number, next) =>
+    acc === next //
+      ? [acc, Option.none()]
+      : [next, Option.some(next)]
+  ),
+  Stream.filterMap(Function.identity)
 );
 ```
 

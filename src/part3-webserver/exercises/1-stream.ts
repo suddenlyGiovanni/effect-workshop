@@ -1,16 +1,7 @@
-import {
-  Chunk,
-  Console,
-  Effect,
-  Either,
-  Option,
-  Stream,
-  identity,
-} from "effect";
-import fs from "node:fs";
-import * as T from "../../testDriver";
+import fs, { type ReadStream } from "node:fs";
+import { Chunk, Console, Effect, Function, Option, Stream } from "effect";
 
-// Exercise 1
+import * as T from "../../testDriver.ts";
 
 const stream = Stream.make(1, 2, 3, 4, 5).pipe(
   Stream.tap((n) => Console.log("emitting", n))
@@ -18,24 +9,40 @@ const stream = Stream.make(1, 2, 3, 4, 5).pipe(
 
 const droppedStream = stream.pipe(Stream.drop(2));
 
+/**
+ * # Exercise 1:
+ *
+ * What happens when we run the droppedStream? Choose the correct answer:
+ *
+ * A. only 3,4,5 logged and end up in final chunk
+ * B. all logged but only 3,4,5 end up in final chunk
+ * C. all logged and all end up in final chunk
+ */
 Effect.runSync(Stream.runCollect(droppedStream));
 
-// What happens when we run the stream?
-
-// A. only 3,4,5 logged and end up in final chunk
-// B. all logged but only 3,4,5 end up in final chunk
-// C. all logged and all end up in final chunk
-
-// Exercise 2
-// fs.createReadStream returns a stream that emits 'open', 'data', 'end', 'error' and 'close' events.
-// Create a stream that emits the 'data' events, and fails with the 'error' event.
-// The fileStream should also be properly closed when the stream ends, fails or is interrupted.
-
-// const fileStream = fs.createReadStream("test.txt");
 class FileStreamError {
-  constructor(public error: unknown) {}
+  public readonly error: unknown;
+
+  constructor(error: unknown) {
+    this.error = error;
+  }
 }
 
+/**
+ * # Exercise 2:
+ *
+ * `fs.createReadStream` returns a stream that emits:
+ * - `open`,
+ * - `data`,
+ * - `end`,
+ * - `error`
+ * - and `close` events.
+ *
+ * Create a stream that emits the `data` events, and fails with the `error` event.
+ * The fileStream should also be properly closed when the stream ends, fails or is interrupted.
+ */
+
+// const fileStream = fs.createReadStream("test.txt");
 const testOne: Stream.Stream<string, FileStreamError> = Stream.empty;
 
 await T.testRunAssert(
@@ -46,12 +53,13 @@ await T.testRunAssert(
   }
 );
 
-// Exercise 3
-// You are given this stream of repeating, but changing, numbers:
-
+/**
+ * # Exercise 3:
+ *
+ * Given this stream of repeating, but changing, numbers, your job is to map
+ * this stream that emits a value only when it differs from the previous value.
+ */
 const powersOfTwo = Stream.make(1, 1, 1, 1, 2, 2, 3, 3, 3, 5, 5, 5, 5, 7);
-
-// Your job is to map this stream that emits a value only when it differs from the previous value.
 
 const testTwo = powersOfTwo;
 
