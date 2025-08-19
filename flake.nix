@@ -18,7 +18,7 @@
           packages = with pkgs; [
             corepack
             bun
-            nodejs-slim_23
+            nodejs-slim_24
             biome
           ];
         };
